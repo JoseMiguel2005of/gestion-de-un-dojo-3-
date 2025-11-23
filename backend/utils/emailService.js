@@ -205,6 +205,18 @@ export const verifyEmailConfig = async () => {
 export const sendUnlockCodeEmail = async (to, unlockCode, username) => {
   try {
     console.log(`📨 Intentando enviar código de desbloqueo a: ${to}`);
+    console.log(`   Usuario de correo configurado: ${emailUser}`);
+    console.log(`   Contraseña configurada: ${emailPass ? 'Sí' : 'No'}`);
+    
+    // Verificar que el transporte esté configurado
+    if (!transporter) {
+      throw new Error('Transporte de correo no configurado');
+    }
+
+    // Verificar credenciales
+    if (!emailUser || !emailPass) {
+      throw new Error('Credenciales de correo no configuradas. Configura EMAIL_USER y EMAIL_PASS en Vercel.');
+    }
     
     const mailOptions = {
       from: `"Dojo de Judo" <${emailUser}>`,
@@ -328,11 +340,21 @@ export const sendUnlockCodeEmail = async (to, unlockCode, username) => {
     console.log('✅ Código de desbloqueo enviado exitosamente');
     console.log('   MessageId:', info.messageId);
     console.log('   Destinatario:', to);
+    console.log('   Código:', unlockCode);
     return info;
   } catch (error) {
     console.error('❌ ERROR al enviar código de desbloqueo:');
     console.error('   Destinatario:', to);
-    console.error('   Error:', error.message);
+    console.error('   Error completo:', error);
+    console.error('   Mensaje:', error.message);
+    console.error('   Código:', error.code);
+    console.error('   Respuesta:', error.response);
+    
+    // Si es un error de autenticación de Gmail, dar un mensaje más claro
+    if (error.code === 'EAUTH' || error.message.includes('Invalid login')) {
+      throw new Error('Error de autenticación con Gmail. Verifica que EMAIL_USER y EMAIL_PASS estén correctamente configurados en Vercel. Para Gmail, necesitas usar una "Contraseña de aplicación" en lugar de tu contraseña normal.');
+    }
+    
     throw error;
   }
 };
