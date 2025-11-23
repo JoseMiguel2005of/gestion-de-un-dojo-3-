@@ -1071,10 +1071,6 @@ export const translations = {
       es: "será en",
       en: "will be in"
     },
-    completed: {
-      es: "completado",
-      en: "completed"
-    },
     categoryBelt: {
       es: "Categoría:",
       en: "Category:"
