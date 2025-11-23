@@ -277,16 +277,26 @@ router.post('/forgot-password', [
     expiresAt.setMinutes(expiresAt.getMinutes() + 15);
 
     // Eliminar tokens anteriores no usados del mismo usuario
-    await executeQuery(
-      'DELETE FROM password_reset_tokens WHERE usuario_id = ? AND used = 0',
-      [user.id]
-    );
+    await supabase
+      .from('password_reset_tokens')
+      .delete()
+      .eq('usuario_id', user.id)
+      .eq('used', false);
 
     // Guardar token en la base de datos
-    await executeQuery(
-      'INSERT INTO password_reset_tokens (usuario_id, token, expires_at) VALUES (?, ?, ?)',
-      [user.id, resetToken, expiresAt]
-    );
+    const { error: insertError } = await supabase
+      .from('password_reset_tokens')
+      .insert({
+        usuario_id: user.id,
+        token: resetToken,
+        expires_at: expiresAt.toISOString(),
+        used: false
+      });
+
+    if (insertError) {
+      console.error('Error guardando token de reset:', insertError);
+      throw new Error('Error guardando token de recuperación');
+    }
 
     // Construir URL de reset (usar la URL del frontend)
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8080';
@@ -316,15 +326,19 @@ router.get('/reset-password/:token', async (req, res) => {
     const { token } = req.params;
 
     // Buscar token en la base de datos
-    const tokens = await executeQuery(
-      `SELECT prt.id, prt.usuario_id, prt.expires_at, prt.used, u.email, u.username
-       FROM password_reset_tokens prt
-       INNER JOIN usuario u ON prt.usuario_id = u.id
-       WHERE prt.token = ? AND prt.used = 0`,
-      [token]
-    );
+    const { data: tokens, error: tokenError } = await supabase
+      .from('password_reset_tokens')
+      .select('id, usuario_id, expires_at, used')
+      .eq('token', token)
+      .eq('used', false)
+      .limit(1);
 
-    if (tokens.length === 0) {
+    if (tokenError) {
+      console.error('Error buscando token:', tokenError);
+      return res.status(500).json({ error: 'Error interno del servidor' });
+    }
+
+    if (!tokens || tokens.length === 0) {
       return res.status(400).json({ error: 'Token inválido o no encontrado' });
     }
 
@@ -336,9 +350,22 @@ router.get('/reset-password/:token', async (req, res) => {
       return res.status(400).json({ error: 'El token ha expirado' });
     }
 
+    // Obtener datos del usuario
+    const { data: users, error: userError } = await supabase
+      .from('usuario')
+      .select('email, username')
+      .eq('id', tokenData.usuario_id)
+      .limit(1);
+
+    if (userError || !users || users.length === 0) {
+      return res.status(400).json({ error: 'Usuario no encontrado' });
+    }
+
+    const user = users[0];
+
     res.json({
       valid: true,
-      email: tokenData.email
+      email: user.email
     });
   } catch (error) {
     console.error('Error verificando token:', error);
@@ -361,15 +388,19 @@ router.post('/reset-password', [
     const { token, password } = req.body;
 
     // Buscar token en la base de datos
-    const tokens = await executeQuery(
-      `SELECT prt.id, prt.usuario_id, prt.expires_at, prt.used, u.email, u.username
-       FROM password_reset_tokens prt
-       INNER JOIN usuario u ON prt.usuario_id = u.id
-       WHERE prt.token = ? AND prt.used = 0`,
-      [token]
-    );
+    const { data: tokens, error: tokenError } = await supabase
+      .from('password_reset_tokens')
+      .select('id, usuario_id, expires_at, used')
+      .eq('token', token)
+      .eq('used', false)
+      .limit(1);
 
-    if (tokens.length === 0) {
+    if (tokenError) {
+      console.error('Error buscando token:', tokenError);
+      return res.status(500).json({ error: 'Error interno del servidor' });
+    }
+
+    if (!tokens || tokens.length === 0) {
       return res.status(400).json({ error: 'Token inválido o no encontrado' });
     }
 
@@ -381,27 +412,50 @@ router.post('/reset-password', [
       return res.status(400).json({ error: 'El token ha expirado. Por favor, solicita uno nuevo.' });
     }
 
+    // Obtener datos del usuario
+    const { data: users, error: userError } = await supabase
+      .from('usuario')
+      .select('email, username')
+      .eq('id', tokenData.usuario_id)
+      .limit(1);
+
+    if (userError || !users || users.length === 0) {
+      return res.status(400).json({ error: 'Usuario no encontrado' });
+    }
+
+    const user = users[0];
+
     // Hashear nueva contraseña
     const password_hash = await bcrypt.hash(password, 10);
 
     // Actualizar contraseña del usuario
-    await executeQuery(
-      'UPDATE usuario SET password_hash = ? WHERE id = ?',
-      [password_hash, tokenData.usuario_id]
-    );
+    const { error: updateError } = await supabase
+      .from('usuario')
+      .update({ password_hash })
+      .eq('id', tokenData.usuario_id);
+
+    if (updateError) {
+      console.error('Error actualizando contraseña:', updateError);
+      return res.status(500).json({ error: 'Error interno del servidor' });
+    }
 
     // Marcar token como usado
-    await executeQuery(
-      'UPDATE password_reset_tokens SET used = 1 WHERE id = ?',
-      [tokenData.id]
-    );
+    const { error: markUsedError } = await supabase
+      .from('password_reset_tokens')
+      .update({ used: true })
+      .eq('id', tokenData.id);
+
+    if (markUsedError) {
+      console.error('Error marcando token como usado:', markUsedError);
+      // No fallar si esto falla, la contraseña ya fue actualizada
+    }
 
     // Registrar en log
     await registrarLog({
       usuario_id: tokenData.usuario_id,
       accion: LogActions.ACTUALIZAR,
       modulo: LogModules.AUTH,
-      descripcion: `Contraseña restablecida exitosamente - Usuario: ${tokenData.username}`,
+      descripcion: `Contraseña restablecida exitosamente - Usuario: ${user.username}`,
       ip_address: req.ip || req.connection.remoteAddress,
       user_agent: req.get('User-Agent')
     });
