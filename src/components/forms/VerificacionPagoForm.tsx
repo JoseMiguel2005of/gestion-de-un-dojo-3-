@@ -455,10 +455,6 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: Verifica
         <Label htmlFor="banco_origen">
           {metodoPago === "pago_movil" 
             ? (isEnglish ? "Bank from which you make the operation" : "Banco desde donde realiza la operación")
-            : metodoPago === "zelle" 
-            ? (isEnglish ? "Bank associated with Zelle" : "Banco asociado a Zelle")
-            : metodoPago === "paypal" 
-            ? (isEnglish ? "Bank associated with PayPal" : "Banco asociado a PayPal")
             : (isEnglish ? "Bank from which you make the transfer" : "Banco desde donde realiza la transferencia")
           }
         </Label>
