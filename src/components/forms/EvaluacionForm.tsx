@@ -71,15 +71,24 @@ export function EvaluacionForm({ onSuccess }: EvaluacionFormProps) {
   useEffect(() => {
     if (examenSeleccionado && alumnos.length > 0) {
       filtrarAlumnosPorCategoria();
+    } else {
+      setAlumnosFiltrados([]);
+      setAlumnosSeleccionados([]);
     }
-  }, [examenSeleccionado, alumnos]);
+  }, [examenSeleccionado, alumnos, isEnglish]);
 
   const fetchAlumnos = async () => {
     try {
       const alumnosData = await apiClient.getAlumnos();
       setAlumnos(alumnosData || []);
+      console.log('Alumnos cargados:', alumnosData?.length || 0);
     } catch (error) {
       console.error('Error cargando alumnos:', error);
+      toast({
+        title: isEnglish ? "Error" : "Error",
+        description: isEnglish ? "Could not load students" : "No se pudieron cargar los estudiantes",
+        variant: "destructive",
+      });
     }
   };
 
@@ -96,38 +105,61 @@ export function EvaluacionForm({ onSuccess }: EvaluacionFormProps) {
     const examen = getExamenesOficiales(isEnglish).find(e => e.id === examenSeleccionado);
     if (!examen) {
       setAlumnosFiltrados([]);
+      setAlumnosSeleccionados([]);
       return;
     }
 
+    console.log('Filtrando alumnos para examen:', examen.nombre, 'Categoría origen:', examen.categoria_origen);
+    console.log('Total alumnos disponibles:', alumnos.length);
+
     // Filtrar alumnos que tienen la cinta de origen del examen
     const filtrados = alumnos.filter(alumno => {
-      if (alumno.estado !== 1) return false;
-      
-      const cintaNombre = alumno.cinta_nombre?.toLowerCase() || '';
-      const categoriaOrigen = examen.categoria_origen.toLowerCase();
-      
-      // Validación estricta: la cinta debe coincidir exactamente con la categoría de origen
-      // Esto previene que alumnos con cinta incorrecta sean incluidos
-      // Por ejemplo: Solo alumnos con cinta "Negro" pueden tomar examen de "Dan Avanzado"
-      if (categoriaOrigen === 'blanco') {
-        return cintaNombre === 'blanco' || cintaNombre === 'blanca';
-      } else if (categoriaOrigen === 'amarillo') {
-        return cintaNombre === 'amarillo' || cintaNombre === 'amarilla';
-      } else if (categoriaOrigen === 'naranja') {
-        return cintaNombre === 'naranja';
-      } else if (categoriaOrigen === 'verde') {
-        return cintaNombre === 'verde';
-      } else if (categoriaOrigen === 'azul') {
-        return cintaNombre === 'azul';
-      } else if (categoriaOrigen === 'marrón') {
-        return cintaNombre === 'marrón' || cintaNombre === 'marron';
-      } else if (categoriaOrigen === 'negro') {
-        return cintaNombre === 'negro' || cintaNombre === 'negra';
+      // El estado puede ser true/false (booleano) o 1/0 (número)
+      const estadoActivo = alumno.estado === true || alumno.estado === 1;
+      if (!estadoActivo) {
+        console.log(`Alumno ${alumno.nombre} descartado: estado inactivo (${alumno.estado})`);
+        return false;
       }
       
-      return false;
+      // Verificar que tenga cinta asignada
+      if (!alumno.cinta_nombre) {
+        console.log(`Alumno ${alumno.nombre} descartado: sin cinta asignada`);
+        return false;
+      }
+      
+      const cintaNombre = alumno.cinta_nombre.toLowerCase().trim();
+      const categoriaOrigen = examen.categoria_origen.toLowerCase().trim();
+      
+      console.log(`Verificando alumno ${alumno.nombre}: cinta="${cintaNombre}", requiere="${categoriaOrigen}"`);
+      
+      // Validación estricta: la cinta debe coincidir exactamente con la categoría de origen
+      let coincide = false;
+      if (categoriaOrigen === 'blanco') {
+        coincide = cintaNombre === 'blanco' || cintaNombre === 'blanca';
+      } else if (categoriaOrigen === 'amarillo') {
+        coincide = cintaNombre === 'amarillo' || cintaNombre === 'amarilla';
+      } else if (categoriaOrigen === 'naranja') {
+        coincide = cintaNombre === 'naranja';
+      } else if (categoriaOrigen === 'verde') {
+        coincide = cintaNombre === 'verde';
+      } else if (categoriaOrigen === 'azul') {
+        coincide = cintaNombre === 'azul';
+      } else if (categoriaOrigen === 'marrón' || categoriaOrigen === 'marron') {
+        coincide = cintaNombre === 'marrón' || cintaNombre === 'marron';
+      } else if (categoriaOrigen === 'negro') {
+        coincide = cintaNombre === 'negro' || cintaNombre === 'negra';
+      }
+      
+      if (coincide) {
+        console.log(`✓ Alumno ${alumno.nombre} incluido`);
+      } else {
+        console.log(`✗ Alumno ${alumno.nombre} descartado: cinta no coincide`);
+      }
+      
+      return coincide;
     });
 
+    console.log(`Alumnos filtrados: ${filtrados.length} de ${alumnos.length}`);
     setAlumnosFiltrados(filtrados);
     // Seleccionar automáticamente todos los alumnos filtrados
     setAlumnosSeleccionados(filtrados.map(a => a.id.toString()));
