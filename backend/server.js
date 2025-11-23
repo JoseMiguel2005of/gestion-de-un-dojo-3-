@@ -23,9 +23,36 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
+// Middleware CORS - Permitir tanto el dominio principal como previews de Vercel
+const allowedOrigins = [
+  process.env.FRONTEND_URL || 'http://localhost:8080',
+  process.env.CORS_ORIGIN,
+  'https://gestion-de-un-dojo-3.vercel.app',
+  /^https:\/\/gestion-de-un-dojo-3-.*\.vercel\.app$/, // Previews de Vercel
+  /^https:\/\/.*-jose-miguel-rodriguezs-projects\.vercel\.app$/ // Previews con tu usuario
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:8080',
+  origin: function (origin, callback) {
+    // Permitir requests sin origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Verificar si el origin está en la lista permitida
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (typeof allowed === 'string') {
+        return origin === allowed;
+      } else if (allowed instanceof RegExp) {
+        return allowed.test(origin);
+      }
+      return false;
+    });
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 app.use(express.json());
