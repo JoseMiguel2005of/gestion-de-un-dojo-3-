@@ -15,7 +15,6 @@ import usuariosRoutes from './routes/usuarios.js';
 import pagosRoutes from './routes/pagos.js';
 import horariosRoutes from './routes/horarios.js';
 import backupRoutes from './routes/backup.js';
-import demoRoutes from './routes/demo.js';
 
 // Cargar variables de entorno
 dotenv.config();
@@ -75,7 +74,6 @@ app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/pagos', pagosRoutes);
 app.use('/api/horarios', horariosRoutes);
 app.use('/api/backup', backupRoutes);
-app.use('/api/demo', demoRoutes);
 
 // Ruta de salud
 app.get('/api/health', (req, res) => {
