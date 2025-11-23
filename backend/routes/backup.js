@@ -1,5 +1,6 @@
 import express from 'express';
 import { executeQuery } from '../config/database.js';
+import supabase from '../utils/supabaseClient.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -187,42 +188,75 @@ router.get('/stats', async (req, res) => {
     const stats = {};
 
     // Total de alumnos
-    const alumnos = await executeQuery('SELECT COUNT(*) as total FROM alumno');
-    stats.total_alumnos = alumnos[0].total;
+    const { count: totalAlumnos, error: alumnosError } = await supabase
+      .from('alumno')
+      .select('*', { count: 'exact', head: true });
+    
+    if (alumnosError) {
+      console.error('Error contando alumnos:', alumnosError);
+      stats.total_alumnos = 0;
+    } else {
+      stats.total_alumnos = totalAlumnos || 0;
+    }
 
     // Total de evaluaciones
-    const evaluaciones = await executeQuery('SELECT COUNT(*) as total FROM evaluacion');
-    stats.total_evaluaciones = evaluaciones[0].total;
+    const { count: totalEvaluaciones, error: evaluacionesError } = await supabase
+      .from('evaluacion')
+      .select('*', { count: 'exact', head: true });
+    
+    if (evaluacionesError) {
+      console.error('Error contando evaluaciones:', evaluacionesError);
+      stats.total_evaluaciones = 0;
+    } else {
+      stats.total_evaluaciones = totalEvaluaciones || 0;
+    }
 
     // Total de usuarios
-    const usuarios = await executeQuery('SELECT COUNT(*) as total FROM usuario');
-    stats.total_usuarios = usuarios[0].total;
+    const { count: totalUsuarios, error: usuariosError } = await supabase
+      .from('usuario')
+      .select('*', { count: 'exact', head: true });
+    
+    if (usuariosError) {
+      console.error('Error contando usuarios:', usuariosError);
+      stats.total_usuarios = 0;
+    } else {
+      stats.total_usuarios = totalUsuarios || 0;
+    }
 
-    // Total de logs - Tabla eliminada
-    stats.total_logs = 0;
+    // Total de logs
+    const { count: totalLogs, error: logsError } = await supabase
+      .from('log_actividades')
+      .select('*', { count: 'exact', head: true });
+    
+    if (logsError) {
+      console.error('Error contando logs:', logsError);
+      stats.total_logs = 0;
+    } else {
+      stats.total_logs = totalLogs || 0;
+    }
 
-    // Tamaño de tablas (aproximado)
-    const tablas = await executeQuery(`
-      SELECT 
-        table_name as nombre_tabla,
-        table_rows as filas,
-        ROUND((data_length + index_length) / 1024 / 1024, 2) as tamano_mb
-      FROM information_schema.tables
-      WHERE table_schema = DATABASE()
-      ORDER BY (data_length + index_length) DESC
-    `);
-    stats.tablas = tablas;
+    // Tamaño de tablas - En Supabase no tenemos acceso directo a information_schema
+    // Retornamos un array vacío o podemos hacer consultas aproximadas
+    stats.tablas = [];
 
     // Último backup (si se guarda en configuración)
-    const ultimoBackup = await executeQuery(
-      "SELECT valor FROM configuracion WHERE clave = 'ultimo_backup'"
-    );
-    stats.ultimo_backup = ultimoBackup[0]?.valor || 'Nunca';
+    const { data: ultimoBackup, error: backupError } = await supabase
+      .from('configuracion')
+      .select('valor')
+      .eq('clave', 'ultimo_backup')
+      .single();
+
+    if (backupError && backupError.code !== 'PGRST116') {
+      console.error('Error obteniendo último backup:', backupError);
+      stats.ultimo_backup = 'Nunca';
+    } else {
+      stats.ultimo_backup = ultimoBackup?.valor || 'Nunca';
+    }
 
     res.json(stats);
   } catch (error) {
     console.error('Error obteniendo estadísticas:', error);
-    res.status(500).json({ error: 'Error obteniendo estadísticas' });
+    res.status(500).json({ error: 'Error obteniendo estadísticas', details: error.message });
   }
 });
 

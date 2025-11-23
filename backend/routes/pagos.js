@@ -219,54 +219,56 @@ router.put('/config', async (req, res) => {
       pais_configuracion
     } = req.body;
 
-    // Construir query dinámicamente basado en los campos presentes
-    const updates = [];
-    const values = [];
+    // Construir objeto de actualización dinámicamente
+    const updateData = {};
     
-    if (dia_corte !== undefined) {
-      updates.push('dia_corte = ?');
-      values.push(dia_corte);
-    }
-    if (descuento_pago_adelantado !== undefined) {
-      updates.push('descuento_pago_adelantado = ?');
-      values.push(descuento_pago_adelantado);
-    }
-    if (recargo_mora !== undefined) {
-      updates.push('recargo_mora = ?');
-      values.push(recargo_mora);
-    }
-    if (moneda !== undefined) {
-      updates.push('moneda = ?');
-      values.push(moneda);
-    }
-    if (metodos_pago !== undefined) {
-      updates.push('metodos_pago = ?');
-      values.push(JSON.stringify(metodos_pago));
-    }
-    if (datos_bancarios !== undefined) {
-      updates.push('datos_bancarios = ?');
-      values.push(datos_bancarios);
-    }
-    if (idioma_sistema !== undefined) {
-      updates.push('idioma_sistema = ?');
-      values.push(idioma_sistema);
-    }
-    if (pais_configuracion !== undefined) {
-      updates.push('pais_configuracion = ?');
-      values.push(pais_configuracion);
+    if (dia_corte !== undefined) updateData.dia_corte = dia_corte;
+    if (descuento_pago_adelantado !== undefined) updateData.descuento_pago_adelantado = descuento_pago_adelantado;
+    if (recargo_mora !== undefined) updateData.recargo_mora = recargo_mora;
+    if (moneda !== undefined) updateData.moneda = moneda;
+    if (metodos_pago !== undefined) updateData.metodos_pago = typeof metodos_pago === 'string' ? metodos_pago : JSON.stringify(metodos_pago);
+    if (datos_bancarios !== undefined) updateData.datos_bancarios = datos_bancarios;
+    if (idioma_sistema !== undefined) updateData.idioma_sistema = idioma_sistema;
+    if (pais_configuracion !== undefined) updateData.pais_configuracion = pais_configuracion;
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ error: 'No se proporcionaron campos para actualizar' });
     }
 
-    if (updates.length > 0) {
-      await executeQuery(
-        `UPDATE config_pagos SET ${updates.join(', ')} WHERE id = 1`,
-        values
-      );
+    // Verificar si existe el registro con id = 1
+    const { data: existingConfig, error: checkError } = await supabase
+      .from('config_pagos')
+      .select('id')
+      .eq('id', 1)
+      .single();
+
+    let result;
+    if (checkError && checkError.code === 'PGRST116') {
+      // No existe, crear uno nuevo
+      result = await supabase
+        .from('config_pagos')
+        .insert([{ id: 1, ...updateData }])
+        .select()
+        .single();
+    } else {
+      // Existe, actualizar
+      result = await supabase
+        .from('config_pagos')
+        .update(updateData)
+        .eq('id', 1)
+        .select()
+        .single();
+    }
+
+    if (result.error) {
+      console.error('Error actualizando configuración de pagos:', result.error);
+      return res.status(500).json({ error: 'Error interno del servidor', details: result.error.message });
     }
 
     res.json({ message: 'Configuración actualizada exitosamente' });
   } catch (error) {
     console.error('Error actualizando configuración de pagos:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
