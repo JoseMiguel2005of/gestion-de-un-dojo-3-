@@ -36,36 +36,52 @@ router.get('/debug/alumno/:alumnoId', async (req, res) => {
     console.log('🔍 DEBUG: Verificando alumno ID:', alumnoId);
     
     // 1. Verificar si el alumno existe
-    const alumno = await executeQuery('SELECT * FROM alumno WHERE id = ?', [alumnoId]);
-    console.log('🔍 DEBUG: Alumno encontrado:', alumno.length > 0 ? 'SÍ' : 'NO');
-    if (alumno.length > 0) {
-      console.log('🔍 DEBUG: Datos del alumno:', alumno[0]);
+    const { data: alumno, error: alumnoError } = await supabase
+      .from('alumno')
+      .select('*')
+      .eq('id', alumnoId)
+      .single();
+    
+    console.log('🔍 DEBUG: Alumno encontrado:', alumno ? 'SÍ' : 'NO');
+    if (alumno) {
+      console.log('🔍 DEBUG: Datos del alumno:', alumno);
     }
     
     // 2. Verificar categorías
-    const categorias = await executeQuery('SELECT * FROM categorias');
-    console.log('🔍 DEBUG: Categorías disponibles:', categorias.length);
+    const { data: categorias, error: categoriasError } = await supabase
+      .from('categorias_edad')
+      .select('*');
     
-    // 3. Verificar join
-    const joinResult = await executeQuery(`
-      SELECT 
-        a.id as alumno_id,
-        a.nombre,
-        a.fecha_nacimiento,
-        a.id_categoria_edad,
-        ce.nombre as categoria_nombre,
-        ce.precio_mensualidad as precio_categoria
-      FROM alumno a
-      LEFT JOIN categorias_edad ce ON a.id_categoria_edad = ce.id
-      WHERE a.id = ?
-    `, [alumnoId]);
+    console.log('🔍 DEBUG: Categorías disponibles:', categorias?.length || 0);
+    
+    // 3. Verificar join - obtener alumno con categoría
+    let joinResult = null;
+    if (alumno && alumno.id_categoria_edad) {
+      const { data: categoria, error: categoriaError } = await supabase
+        .from('categorias_edad')
+        .select('*')
+        .eq('id', alumno.id_categoria_edad)
+        .single();
+      
+      if (categoria) {
+        joinResult = {
+          alumno_id: alumno.id,
+          nombre: alumno.nombre,
+          fecha_nacimiento: alumno.fecha_nacimiento,
+          id_categoria_edad: alumno.id_categoria_edad,
+          categoria_nombre: categoria.nombre,
+          precio_categoria: categoria.precio_mensualidad
+        };
+      }
+    }
+    
     console.log('🔍 DEBUG: Resultado del JOIN:', joinResult);
     
     res.json({
       alumnoId,
-      alumno: alumno[0] || null,
-      categorias: categorias,
-      joinResult: joinResult[0] || null
+      alumno: alumno || null,
+      categorias: categorias || [],
+      joinResult: joinResult
     });
   } catch (error) {
     console.error('🔍 DEBUG ERROR:', error);
@@ -82,24 +98,39 @@ router.get('/precio/:alumnoId', async (req, res) => {
   try {
     const { alumnoId } = req.params;
     
-    // Obtener información del alumno y su categoría
-    const alumno = await executeQuery(`
-      SELECT 
-        a.id as alumno_id,
-        a.nombre,
-        a.fecha_nacimiento,
-        ce.nombre as categoria_nombre,
-        ce.precio_mensualidad as precio_categoria
-      FROM alumno a
-      LEFT JOIN categorias_edad ce ON a.id_categoria_edad = ce.id
-      WHERE a.id = ? AND a.estado = 1
-    `, [alumnoId]);
+    // Obtener información del alumno
+    const { data: alumno, error: alumnoError } = await supabase
+      .from('alumno')
+      .select('*')
+      .eq('id', alumnoId)
+      .eq('estado', 1)
+      .single();
 
-    if (alumno.length === 0) {
+    if (alumnoError || !alumno) {
       return res.status(404).json({ error: 'Alumno no encontrado' });
     }
 
-    const alumnoData = alumno[0];
+    // Obtener categoría del alumno
+    let categoria = null;
+    if (alumno.id_categoria_edad) {
+      const { data: catData, error: catError } = await supabase
+        .from('categorias_edad')
+        .select('*')
+        .eq('id', alumno.id_categoria_edad)
+        .single();
+      
+      if (!catError && catData) {
+        categoria = catData;
+      }
+    }
+
+    const alumnoData = {
+      alumno_id: alumno.id,
+      nombre: alumno.nombre,
+      fecha_nacimiento: alumno.fecha_nacimiento,
+      categoria_nombre: categoria?.nombre || null,
+      precio_categoria: categoria?.precio_mensualidad || null
+    };
     
     // Calcular edad
     const fechaNacimiento = new Date(alumnoData.fecha_nacimiento);
@@ -107,12 +138,12 @@ router.get('/precio/:alumnoId', async (req, res) => {
     const edad = hoy.getFullYear() - fechaNacimiento.getFullYear();
     
     // Verificar si el alumno ya tiene pagos registrados (es nuevo o no)
-    const pagosExistentes = await executeQuery(
-      'SELECT COUNT(*) as total_pagos FROM pagos WHERE id_alumno = ?',
-      [alumnoId]
-    );
+    const { count: totalPagos, error: pagosError } = await supabase
+      .from('pagos')
+      .select('*', { count: 'exact', head: true })
+      .eq('id_alumno', alumnoId);
     
-    const esAlumnoNuevo = pagosExistentes[0].total_pagos === 0;
+    const esAlumnoNuevo = (totalPagos || 0) === 0;
     
     // Usar precio de la categoría como precio base
     const precioBase = Math.round((alumnoData.precio_categoria || 50) * 100) / 100; // Redondear a 2 decimales
@@ -155,19 +186,56 @@ router.get('/precio/:alumnoId', async (req, res) => {
 // Obtener todos los precios (resumen)
 router.get('/precios', async (req, res) => {
   try {
-    const precios = await executeQuery(`
-      SELECT 
-        a.id as alumno_id,
-        a.nombre,
-        YEAR(CURDATE()) - YEAR(a.fecha_nacimiento) as edad,
-        ce.nombre as categoria_nombre,
-        ce.precio_mensualidad as precio_final,
-        a.estado
-      FROM alumno a
-      LEFT JOIN categorias_edad ce ON a.id_categoria_edad = ce.id
-      WHERE a.estado = 1
-      ORDER BY ce.nombre, a.nombre
-    `);
+    // Obtener todos los alumnos activos
+    const { data: alumnos, error: alumnosError } = await supabase
+      .from('alumno')
+      .select('*')
+      .eq('estado', 1)
+      .order('nombre', { ascending: true });
+
+    if (alumnosError) {
+      throw alumnosError;
+    }
+
+    // Obtener todas las categorías
+    const { data: categorias, error: categoriasError } = await supabase
+      .from('categorias_edad')
+      .select('*');
+
+    if (categoriasError) {
+      throw categoriasError;
+    }
+
+    // Crear mapa de categorías
+    const categoriasMap = {};
+    categorias.forEach(cat => {
+      categoriasMap[cat.id] = cat;
+    });
+
+    // Calcular edad y combinar datos
+    const hoy = new Date();
+    const precios = alumnos.map(alumno => {
+      const fechaNacimiento = new Date(alumno.fecha_nacimiento);
+      const edad = hoy.getFullYear() - fechaNacimiento.getFullYear();
+      const categoria = categoriasMap[alumno.id_categoria_edad] || null;
+
+      return {
+        alumno_id: alumno.id,
+        nombre: alumno.nombre,
+        edad: edad,
+        categoria_nombre: categoria?.nombre || null,
+        precio_final: categoria?.precio_mensualidad || null,
+        estado: alumno.estado
+      };
+    });
+
+    // Ordenar por categoría y nombre
+    precios.sort((a, b) => {
+      if (a.categoria_nombre !== b.categoria_nombre) {
+        return (a.categoria_nombre || '').localeCompare(b.categoria_nombre || '');
+      }
+      return (a.nombre || '').localeCompare(b.nombre || '');
+    });
 
     res.json(precios);
   } catch (error) {
@@ -181,19 +249,30 @@ router.put('/precio-personalizado/:alumnoId', async (req, res) => {
   try {
     const { alumnoId } = req.params;
     
-    // Obtener el precio de la categoría del alumno
-    const alumno = await executeQuery(`
-      SELECT ce.precio_mensualidad as precio_categoria
-      FROM alumno a
-      LEFT JOIN categorias_edad ce ON a.id_categoria_edad = ce.id
-      WHERE a.id = ?
-    `, [alumnoId]);
+    // Obtener el alumno
+    const { data: alumno, error: alumnoError } = await supabase
+      .from('alumno')
+      .select('id_categoria_edad')
+      .eq('id', alumnoId)
+      .single();
 
-    if (alumno.length === 0) {
+    if (alumnoError || !alumno) {
       return res.status(404).json({ error: 'Alumno no encontrado' });
     }
 
-    const precioFinal = alumno[0].precio_categoria || 0;
+    // Obtener el precio de la categoría
+    let precioFinal = 0;
+    if (alumno.id_categoria_edad) {
+      const { data: categoria, error: categoriaError } = await supabase
+        .from('categorias_edad')
+        .select('precio_mensualidad')
+        .eq('id', alumno.id_categoria_edad)
+        .single();
+      
+      if (!categoriaError && categoria) {
+        precioFinal = categoria.precio_mensualidad || 0;
+      }
+    }
 
     res.json({ 
       message: 'Los precios se basan en la categoría del alumno',
@@ -310,11 +389,13 @@ router.post('/', [
     // Si no se proporciona id_alumno, obtenerlo del usuario logueado
     let alumnoId = id_alumno;
     if (!alumnoId && req.user.rol === 'usuario') {
-      const alumnos = await executeQuery(
-        'SELECT id FROM alumno WHERE usuario_id = ? LIMIT 1',
-        [req.user.id]
-      );
-      if (alumnos.length > 0) {
+      const { data: alumnos, error: alumnosError } = await supabase
+        .from('alumno')
+        .select('id')
+        .eq('usuario_id', req.user.id)
+        .limit(1);
+      
+      if (!alumnosError && alumnos && alumnos.length > 0) {
         alumnoId = alumnos[0].id;
       }
     }
@@ -399,12 +480,15 @@ router.post('/', [
     
     if (esPagoAdelantado) {
       // Validar que el usuario ya pagó el mes actual antes de permitir pago adelantado
-      const pagoMesActual = await executeQuery(
-        'SELECT id, estado FROM pagos WHERE id_alumno = ? AND mes = ? AND anio = ?',
-        [alumnoId, mesActual, anioActual]
-      );
+      const { data: pagoMesActual, error: pagoError } = await supabase
+        .from('pagos')
+        .select('id, estado')
+        .eq('id_alumno', alumnoId)
+        .eq('mes', mesActual)
+        .eq('anio', anioActual)
+        .limit(1);
       
-      if (pagoMesActual.length === 0 || pagoMesActual[0].estado !== 'confirmado') {
+      if (!pagoMesActual || pagoMesActual.length === 0 || pagoMesActual[0].estado !== 'confirmado') {
         return res.status(400).json({ 
           error: `No se puede realizar un pago adelantado. Debe pagar primero el mes actual (${mesActual}/${anioActual}) y que esté confirmado.` 
         });
@@ -438,12 +522,15 @@ router.post('/', [
             anio = anioCorrespondiente;
             
             // Validar que el usuario ya pagó el mes actual
-            const pagoMesActual = await executeQuery(
-              'SELECT id, estado FROM pagos WHERE id_alumno = ? AND mes = ? AND anio = ?',
-              [alumnoId, mesActual, anioActual]
-            );
+            const { data: pagoMesActual, error: pagoError } = await supabase
+              .from('pagos')
+              .select('id, estado')
+              .eq('id_alumno', alumnoId)
+              .eq('mes', mesActual)
+              .eq('anio', anioActual)
+              .limit(1);
             
-            if (pagoMesActual.length === 0 || pagoMesActual[0].estado !== 'confirmado') {
+            if (!pagoMesActual || pagoMesActual.length === 0 || pagoMesActual[0].estado !== 'confirmado') {
               return res.status(400).json({ 
                 error: `No se puede realizar un pago adelantado. Debe pagar primero el mes actual (${mesActual}/${anioActual}) y que esté confirmado.` 
               });
@@ -472,12 +559,15 @@ router.post('/', [
     console.log(`[Resultado Final] Mes determinado: ${mes}, Año: ${anio}, Es adelantado: ${esPagoAdelantado}`);
 
     // Verificar si ya existe un pago para el mes correspondiente
-    const pagoExistente = await executeQuery(
-      'SELECT id, estado, observaciones FROM pagos WHERE id_alumno = ? AND mes = ? AND anio = ?',
-      [alumnoId, mes, anio]
-    );
+    const { data: pagoExistente, error: pagoExistenteError } = await supabase
+      .from('pagos')
+      .select('id, estado, observaciones')
+      .eq('id_alumno', alumnoId)
+      .eq('mes', mes)
+      .eq('anio', anio)
+      .limit(1);
 
-    if (pagoExistente.length > 0) {
+    if (pagoExistente && pagoExistente.length > 0) {
       const pago = pagoExistente[0];
       const esPagoAdelantadoExistente = pago.observaciones && pago.observaciones.includes('Pago adelantado');
       
@@ -508,33 +598,37 @@ router.post('/', [
       }
     }
 
-    const result = await executeQuery(
-      `INSERT INTO pagos (
-        id_alumno, mes, anio, monto, metodo_pago, fecha_pago, 
-        mes_correspondiente, estado, referencia, banco_origen, 
-        cedula_titular, telefono_cuenta, comprobante, observaciones, registrado_por
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        alumnoId, 
-        mes, 
-        anio, 
-        monto, 
-        metodo_pago, 
-        fecha_pago,
-        mes_correspondiente || new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }),
-        estado || 'pendiente',
-        referencia || null,
-        banco_origen || null,
-        cedula_titular || null,
-        telefono_cuenta || null,
-        comprobante || null,
-        observaciones || null,
-        registrado_por
-      ]
-    );
+    const pagoData = {
+      id_alumno: alumnoId,
+      mes: mes,
+      anio: anio,
+      monto: monto,
+      metodo_pago: metodo_pago,
+      fecha_pago: fecha_pago,
+      mes_correspondiente: mes_correspondiente || new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }),
+      estado: estado || 'pendiente',
+      referencia: referencia || null,
+      banco_origen: banco_origen || null,
+      cedula_titular: cedula_titular || null,
+      telefono_cuenta: telefono_cuenta || null,
+      comprobante: comprobante || null,
+      observaciones: observaciones || null,
+      registrado_por: registrado_por
+    };
+
+    const { data: result, error: insertError } = await supabase
+      .from('pagos')
+      .insert([pagoData])
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Error insertando pago:', insertError);
+      return res.status(500).json({ error: 'Error interno del servidor: ' + insertError.message });
+    }
 
     res.status(201).json({ 
-      id: result.insertId, 
+      id: result.id, 
       message: 'Pago registrado exitosamente. Pendiente de verificación.' 
     });
   } catch (error) {
@@ -548,16 +642,42 @@ router.get('/alumno/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const pagos = await executeQuery(
-      `SELECT p.*, u.nombre_completo as registrado_por_nombre 
-       FROM pagos p 
-       LEFT JOIN usuario u ON p.registrado_por = u.id 
-       WHERE p.id_alumno = ? 
-       ORDER BY p.anio DESC, p.mes DESC`,
-      [id]
-    );
+    // Obtener pagos del alumno
+    const { data: pagos, error: pagosError } = await supabase
+      .from('pagos')
+      .select('*')
+      .eq('id_alumno', id)
+      .order('anio', { ascending: false })
+      .order('mes', { ascending: false });
+
+    if (pagosError) {
+      throw pagosError;
+    }
+
+    // Obtener información de usuarios que registraron los pagos
+    const userIds = [...new Set(pagos.map(p => p.registrado_por).filter(Boolean))];
+    const usuariosMap = {};
     
-    res.json(pagos);
+    if (userIds.length > 0) {
+      const { data: usuarios, error: usuariosError } = await supabase
+        .from('usuario')
+        .select('id, nombre_completo')
+        .in('id', userIds);
+      
+      if (!usuariosError && usuarios) {
+        usuarios.forEach(u => {
+          usuariosMap[u.id] = u.nombre_completo;
+        });
+      }
+    }
+
+    // Combinar datos
+    const pagosConUsuario = pagos.map(pago => ({
+      ...pago,
+      registrado_por_nombre: usuariosMap[pago.registrado_por] || null
+    }));
+    
+    res.json(pagosConUsuario);
   } catch (error) {
     console.error('Error obteniendo pagos del alumno:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -636,21 +756,35 @@ router.get('/pendientes', async (req, res) => {
     const mesActual = new Date().getMonth() + 1;
     const anioActual = new Date().getFullYear();
 
-    const alumnos = await executeQuery(
-      `SELECT a.id, a.nombre, a.apellido, a.cedula
-       FROM alumno a
-       WHERE a.estado = 1
-       AND NOT EXISTS (
-         SELECT 1 FROM pagos p 
-         WHERE p.id_alumno = a.id 
-         AND p.mes = ? 
-         AND p.anio = ?
-       )
-       ORDER BY a.nombre`,
-      [mesActual, anioActual]
-    );
+    // Obtener todos los alumnos activos
+    const { data: alumnos, error: alumnosError } = await supabase
+      .from('alumno')
+      .select('id, nombre, apellido, cedula')
+      .eq('estado', 1)
+      .order('nombre', { ascending: true });
 
-    res.json(alumnos);
+    if (alumnosError) {
+      throw alumnosError;
+    }
+
+    // Obtener todos los pagos del mes actual
+    const { data: pagos, error: pagosError } = await supabase
+      .from('pagos')
+      .select('id_alumno')
+      .eq('mes', mesActual)
+      .eq('anio', anioActual);
+
+    if (pagosError) {
+      throw pagosError;
+    }
+
+    // Crear set de IDs de alumnos que ya pagaron
+    const alumnosConPago = new Set(pagos.map(p => p.id_alumno));
+
+    // Filtrar alumnos que no tienen pago
+    const alumnosPendientes = alumnos.filter(alumno => !alumnosConPago.has(alumno.id));
+
+    res.json(alumnosPendientes);
   } catch (error) {
     console.error('Error obteniendo alumnos con pagos pendientes:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
