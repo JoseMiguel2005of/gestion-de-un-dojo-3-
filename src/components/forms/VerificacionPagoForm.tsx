@@ -159,6 +159,8 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: Verifica
 
   const metodoPago = watch("metodo_pago");
 
+  const metodoPago = watch("metodo_pago");
+
   // Actualizar el resolver cuando cambie el país
   useEffect(() => {
     reset({
@@ -181,8 +183,6 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: Verifica
       setValue('telefono_cuenta', '');
     }
   }, [metodoPago, setValue]);
-
-  const metodoPago = watch("metodo_pago");
 
   useEffect(() => {
     const verificarPagoExistente = async () => {
@@ -341,10 +341,6 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: Verifica
       let metodoPagoTexto = isEnglish ? "Transfer" : "Transferencia";
       if (data.metodo_pago === "pago_movil") {
         metodoPagoTexto = isEnglish ? "Mobile Payment" : "Pago Móvil";
-      } else if (data.metodo_pago === "zelle") {
-        metodoPagoTexto = "Zelle";
-      } else if (data.metodo_pago === "paypal") {
-        metodoPagoTexto = "PayPal";
       }
 
       const pagoData = {
@@ -431,7 +427,7 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: Verifica
       <div className="space-y-2">
         <Label htmlFor="metodo_pago">{getTranslation('paymentVerification.paymentMethod', isEnglish)}</Label>
         <Select
-          onValueChange={(value) => setValue("metodo_pago", value as "transferencia" | "pago_movil" | "zelle" | "paypal")}
+          onValueChange={(value) => setValue("metodo_pago", value as "transferencia" | "pago_movil")}
           value={watch("metodo_pago")}
         >
           <SelectTrigger>
