@@ -88,14 +88,21 @@ export default function Pagos() {
     
     // También escuchar eventos personalizados de actualización de configuración
     const handleConfigUpdate = () => {
+      // Recargar configuración inmediatamente cuando se actualiza
       loadConfigPagos();
     };
     
     window.addEventListener('config-updated', handleConfigUpdate as EventListener);
     
+    // También escuchar periódicamente para detectar cambios (cada 2 segundos)
+    const intervalId = setInterval(() => {
+      loadConfigPagos();
+    }, 2000);
+    
     return () => {
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('config-updated', handleConfigUpdate as EventListener);
+      clearInterval(intervalId);
     };
   }, []);
 
@@ -271,7 +278,10 @@ export default function Pagos() {
                 )}
                 {configPagos?.moneda === 'BS.' && (
                   <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    <span className="font-medium">{isEnglish ? "Equivalent:" : "Equivalente:"}</span> USD$ {(Number(isUsuarioNormal ? (precioAlumno?.precio_final || 0) : (configPagos?.mensualidad_monto || 0))).toFixed(2)}
+                    <span className="font-medium">{isEnglish ? "Equivalent:" : "Equivalente:"}</span> USD$ {((Number(isUsuarioNormal ? (precioAlumno?.precio_final || 0) : (configPagos?.mensualidad_monto || 0))) / (configPagos?.tipo_cambio_usd_bs || 220)).toLocaleString('es-VE', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    })}
                   </div>
                 )}
               </div>
