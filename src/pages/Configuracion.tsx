@@ -109,8 +109,10 @@ export default function Configuracion() {
           // Usuario normal o admin solo para su cuenta
           await apiClient.cambiarIdioma(userLanguage);
         }
-        // Disparar evento de cambio de idioma
-        window.dispatchEvent(new Event('language-change'));
+        // Disparar evento de cambio de idioma con el nuevo idioma para actualización inmediata
+        window.dispatchEvent(new CustomEvent('language-change', { 
+          detail: { idioma_preferido: userLanguage } 
+        }));
       }
       
       toast({
