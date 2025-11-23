@@ -1,0 +1,40 @@
+===========================================
+COMANDOS PARA SUBIR A GITHUB (MANUAL)
+===========================================
+
+1. Abre PowerShell y navega al proyecto:
+   cd "C:\Users\holaj\OneDrive\Desktop\DOJO DEFINITIVO\DOJO DEFINITIVO\Interfaz Dojo\secreto-de-codigos-main"
+
+2. Inicializar Git (si no esta inicializado):
+   git init
+
+3. Agregar todos los archivos:
+   git add .
+
+4. Hacer el primer commit:
+   git commit -m "Initial commit: Proyecto Dojo con Supabase y configuracion para Vercel"
+
+5. Agregar tu repositorio de GitHub (reemplaza con tu URL):
+   git remote add origin https://github.com/TU-USUARIO/TU-REPOSITORIO.git
+
+6. Cambiar a rama main:
+   git branch -M main
+
+7. Subir el codigo:
+   git push -u origin main
+
+===========================================
+NOTAS IMPORTANTES:
+===========================================
+
+- Si ya tienes un remote origin, primero eliminalo:
+  git remote remove origin
+
+- Si te pide autenticacion, necesitas un Personal Access Token de GitHub
+  Ve a: GitHub > Settings > Developer settings > Personal access tokens
+
+- Si el repositorio ya tiene contenido, primero haz:
+  git pull origin main --allow-unrelated-histories
+
+===========================================
+

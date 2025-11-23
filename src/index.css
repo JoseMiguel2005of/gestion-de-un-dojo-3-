@@ -1,0 +1,206 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Base colors - Inspired by judo belt system */
+    --background: 0 0% 98%;
+    --foreground: 240 10% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 15%;
+
+    /* Primary - Negro (Black belt) - Elegante y profesional */
+    --primary: 240 10% 12%;
+    --primary-foreground: 0 0% 98%;
+
+    /* Secondary - Azul (Blue belt) - Confianza y progreso */
+    --secondary: 220 80% 45%;
+    --secondary-foreground: 0 0% 98%;
+
+    /* Accent - Oro/Amarillo (Yellow/Gold belt) - Energía y logros */
+    --accent: 45 95% 60%;
+    --accent-foreground: 240 10% 15%;
+
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 220 80% 45%;
+
+    --radius: 0.75rem;
+    
+    /* Judo belt colors - Extended palette */
+    --belt-white: 0 0% 100%;
+    --belt-yellow: 45 95% 60%;
+    --belt-orange: 25 95% 58%;
+    --belt-green: 140 60% 40%;
+    --belt-blue: 220 80% 45%;
+    --belt-brown: 25 60% 35%;
+    --belt-black: 240 10% 12%;
+    
+    /* Gradients - Elegant transitions */
+    --gradient-primary: linear-gradient(135deg, hsl(240 10% 12%), hsl(220 80% 45%));
+    --gradient-accent: linear-gradient(135deg, hsl(220 80% 45%), hsl(45 95% 60%));
+    --gradient-overlay: linear-gradient(180deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.02));
+    
+    /* Shadows - Elegant depth */
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.16);
+
+    /* Sidebar */
+    --sidebar-background: 240 10% 12%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 220 80% 45%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 8% 20%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 240 8% 18%;
+    --sidebar-ring: 220 80% 45%;
+  }
+
+  .dark {
+    --background: 240 10% 8%;
+    --foreground: 0 0% 98%;
+
+    --card: 240 8% 12%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 240 8% 12%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 10% 12%;
+
+    --secondary: 220 80% 50%;
+    --secondary-foreground: 0 0% 98%;
+
+    --accent: 45 95% 65%;
+    --accent-foreground: 240 10% 12%;
+
+    --muted: 240 6% 18%;
+    --muted-foreground: 240 5% 65%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 6% 20%;
+    --input: 240 6% 20%;
+    --ring: 220 80% 50%;
+    
+    --sidebar-background: 240 10% 8%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 220 80% 50%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 8% 16%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 240 6% 20%;
+    --sidebar-ring: 220 80% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', 'Noto Sans JP', sans-serif;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Noto Sans JP', 'Inter', sans-serif;
+    font-weight: 600;
+  }
+}
+
+@layer utilities {
+  /* Colores adaptativos para modo oscuro */
+  .text-adaptive-gray {
+    @apply text-gray-600 dark:text-gray-300;
+  }
+  
+  .text-adaptive-orange {
+    @apply text-orange-800 dark:text-orange-400;
+  }
+  
+  .text-adaptive-blue {
+    @apply text-blue-700 dark:text-blue-400;
+  }
+  
+  .text-adaptive-green {
+    @apply text-green-700 dark:text-green-400;
+  }
+  
+  .text-adaptive-purple {
+    @apply text-purple-700 dark:text-purple-400;
+  }
+  
+  .text-adaptive-yellow {
+    @apply text-yellow-700 dark:text-yellow-400;
+  }
+  
+  .bg-adaptive-card {
+    @apply bg-white dark:bg-gray-800;
+  }
+  
+  /* Gradientes adaptativos */
+  .bg-gradient-orange-adaptive {
+    @apply bg-gradient-to-br from-orange-50 to-orange-100/30 dark:from-orange-950/30 dark:to-orange-900/20;
+  }
+  
+  .bg-gradient-blue-adaptive {
+    @apply bg-gradient-to-br from-blue-50 to-blue-100/30 dark:from-blue-950/30 dark:to-blue-900/20;
+  }
+  
+  .bg-gradient-green-adaptive {
+    @apply bg-gradient-to-br from-green-50 to-green-100/30 dark:from-green-950/30 dark:to-green-900/20;
+  }
+  
+  .bg-gradient-purple-adaptive {
+    @apply bg-gradient-to-br from-purple-50 to-purple-100/30 dark:from-purple-950/30 dark:to-purple-900/20;
+  }
+  
+  .bg-gradient-yellow-adaptive {
+    @apply bg-gradient-to-br from-yellow-50 to-yellow-100/30 dark:from-yellow-950/30 dark:to-yellow-900/20;
+  }
+  
+  .bg-gradient-gray-adaptive {
+    @apply bg-gradient-to-br from-gray-50 to-gray-100/30 dark:from-gray-900/30 dark:to-gray-800/20;
+  }
+  
+  /* Bordes adaptativos */
+  .border-adaptive-orange {
+    @apply border-orange-200 dark:border-orange-800;
+  }
+  
+  .border-adaptive-blue {
+    @apply border-blue-200 dark:border-blue-800;
+  }
+  
+  .border-adaptive-green {
+    @apply border-green-200 dark:border-green-800;
+  }
+  
+  .border-adaptive-purple {
+    @apply border-purple-200 dark:border-purple-800;
+  }
+  
+  .border-adaptive-yellow {
+    @apply border-yellow-200 dark:border-yellow-800;
+  }
+}
