@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { executeQuery } from '../config/database.js';
+import supabase from './supabaseClient.js';
 import { sendUnlockCodeEmail } from './emailService.js';
 
 /**
@@ -13,20 +13,43 @@ const generateUnlockCode = () => {
  * Obtiene o crea un registro de bloqueo para un usuario
  */
 const getOrCreateLockRecord = async (usuarioId) => {
-  let lockRecord = await executeQuery(
-    'SELECT * FROM account_lock WHERE usuario_id = ?',
-    [usuarioId]
-  );
+  let { data: lockRecord, error } = await supabase
+    .from('account_lock')
+    .select('*')
+    .eq('usuario_id', usuarioId)
+    .limit(1);
 
-  if (lockRecord.length === 0) {
-    await executeQuery(
-      'INSERT INTO account_lock (usuario_id, intentos_fallidos, bloqueado) VALUES (?, 0, 0)',
-      [usuarioId]
-    );
-    lockRecord = await executeQuery(
-      'SELECT * FROM account_lock WHERE usuario_id = ?',
-      [usuarioId]
-    );
+  if (error) {
+    console.error('Error obteniendo lock record:', error);
+    throw error;
+  }
+
+  if (!lockRecord || lockRecord.length === 0) {
+    const { error: insertError } = await supabase
+      .from('account_lock')
+      .insert({
+        usuario_id: usuarioId,
+        intentos_fallidos: 0,
+        bloqueado: false
+      });
+
+    if (insertError) {
+      console.error('Error creando lock record:', insertError);
+      throw insertError;
+    }
+
+    const { data: newRecord, error: selectError } = await supabase
+      .from('account_lock')
+      .select('*')
+      .eq('usuario_id', usuarioId)
+      .limit(1);
+
+    if (selectError) {
+      console.error('Error obteniendo nuevo lock record:', selectError);
+      throw selectError;
+    }
+
+    lockRecord = newRecord;
   }
 
   return lockRecord[0];
@@ -42,10 +65,18 @@ export const incrementFailedAttempts = async (usuarioId) => {
   const MAX_ATTEMPTS = 3;
   
   // Actualizar intentos fallidos
-  await executeQuery(
-    'UPDATE account_lock SET intentos_fallidos = ?, updated_at = NOW() WHERE usuario_id = ?',
-    [nuevosIntentos, usuarioId]
-  );
+  const { error: updateError } = await supabase
+    .from('account_lock')
+    .update({
+      intentos_fallidos: nuevosIntentos,
+      updated_at: new Date().toISOString()
+    })
+    .eq('usuario_id', usuarioId);
+
+  if (updateError) {
+    console.error('Error actualizando intentos fallidos:', updateError);
+    throw updateError;
+  }
 
   // Si alcanza el límite, bloquear la cuenta
   if (nuevosIntentos >= MAX_ATTEMPTS) {
@@ -61,12 +92,16 @@ export const incrementFailedAttempts = async (usuarioId) => {
  */
 const blockAccount = async (usuarioId) => {
   // Obtener datos del usuario
-  const users = await executeQuery(
-    'SELECT email, username FROM usuario WHERE id = ?',
-    [usuarioId]
-  );
+  const { data: users, error: userError } = await supabase
+    .from('usuario')
+    .select('email, username')
+    .eq('id', usuarioId)
+    .limit(1);
 
-  if (users.length === 0) return;
+  if (userError || !users || users.length === 0) {
+    console.error('Error obteniendo usuario para bloqueo:', userError);
+    return;
+  }
 
   const user = users[0];
 
@@ -76,17 +111,22 @@ const blockAccount = async (usuarioId) => {
   expiresAt.setMinutes(expiresAt.getMinutes() + 30);
 
   // Bloquear cuenta y guardar código
-  await executeQuery(
-    `UPDATE account_lock 
-     SET bloqueado = 1, 
-         bloqueado_desde = NOW(),
-         codigo_desbloqueo = ?,
-         codigo_expires_at = ?,
-         codigo_used = 0,
-         updated_at = NOW()
-     WHERE usuario_id = ?`,
-    [unlockCode, expiresAt, usuarioId]
-  );
+  const { error: blockError } = await supabase
+    .from('account_lock')
+    .update({
+      bloqueado: true,
+      bloqueado_desde: new Date().toISOString(),
+      codigo_desbloqueo: unlockCode,
+      codigo_expires_at: expiresAt.toISOString(),
+      codigo_used: false,
+      updated_at: new Date().toISOString()
+    })
+    .eq('usuario_id', usuarioId);
+
+  if (blockError) {
+    console.error('Error bloqueando cuenta:', blockError);
+    throw blockError;
+  }
 
   // Enviar código por correo
   try {
@@ -101,27 +141,43 @@ const blockAccount = async (usuarioId) => {
  * Resetea los intentos fallidos (después de login exitoso)
  */
 export const resetFailedAttempts = async (usuarioId) => {
-  await executeQuery(
-    'UPDATE account_lock SET intentos_fallidos = 0, bloqueado = 0, bloqueado_desde = NULL, updated_at = NOW() WHERE usuario_id = ?',
-    [usuarioId]
-  );
+  const { error } = await supabase
+    .from('account_lock')
+    .update({
+      intentos_fallidos: 0,
+      bloqueado: false,
+      bloqueado_desde: null,
+      updated_at: new Date().toISOString()
+    })
+    .eq('usuario_id', usuarioId);
+
+  if (error) {
+    console.error('Error reseteando intentos fallidos:', error);
+    // No lanzar error aquí, solo loguear, porque esto no debería bloquear el login
+  }
 };
 
 /**
  * Verifica si una cuenta está bloqueada
  */
 export const isAccountLocked = async (usuarioId) => {
-  const lockRecord = await executeQuery(
-    'SELECT bloqueado, bloqueado_desde FROM account_lock WHERE usuario_id = ?',
-    [usuarioId]
-  );
+  const { data: lockRecord, error } = await supabase
+    .from('account_lock')
+    .select('bloqueado, bloqueado_desde')
+    .eq('usuario_id', usuarioId)
+    .limit(1);
 
-  if (lockRecord.length === 0) {
+  if (error) {
+    console.error('Error verificando bloqueo:', error);
+    return { locked: false };
+  }
+
+  if (!lockRecord || lockRecord.length === 0) {
     return { locked: false };
   }
 
   return {
-    locked: lockRecord[0].bloqueado === 1,
+    locked: lockRecord[0].bloqueado === true,
     lockedSince: lockRecord[0].bloqueado_desde
   };
 };
@@ -130,21 +186,26 @@ export const isAccountLocked = async (usuarioId) => {
  * Verifica y usa un código de desbloqueo
  */
 export const verifyUnlockCode = async (usuarioId, code) => {
-  const lockRecord = await executeQuery(
-    `SELECT codigo_desbloqueo, codigo_expires_at, codigo_used 
-     FROM account_lock 
-     WHERE usuario_id = ? AND bloqueado = 1`,
-    [usuarioId]
-  );
+  const { data: lockRecord, error } = await supabase
+    .from('account_lock')
+    .select('codigo_desbloqueo, codigo_expires_at, codigo_used')
+    .eq('usuario_id', usuarioId)
+    .eq('bloqueado', true)
+    .limit(1);
 
-  if (lockRecord.length === 0) {
+  if (error) {
+    console.error('Error verificando código:', error);
+    return { valid: false, error: 'Error verificando código' };
+  }
+
+  if (!lockRecord || lockRecord.length === 0) {
     return { valid: false, error: 'La cuenta no está bloqueada' };
   }
 
   const record = lockRecord[0];
 
   // Verificar si el código ya fue usado
-  if (record.codigo_used === 1) {
+  if (record.codigo_used === true) {
     return { valid: false, error: 'Este código ya fue usado' };
   }
 
@@ -160,16 +221,21 @@ export const verifyUnlockCode = async (usuarioId, code) => {
   }
 
   // Código válido - desbloquear cuenta
-  await executeQuery(
-    `UPDATE account_lock 
-     SET bloqueado = 0,
-         bloqueado_desde = NULL,
-         intentos_fallidos = 0,
-         codigo_used = 1,
-         updated_at = NOW()
-     WHERE usuario_id = ?`,
-    [usuarioId]
-  );
+  const { error: updateError } = await supabase
+    .from('account_lock')
+    .update({
+      bloqueado: false,
+      bloqueado_desde: null,
+      intentos_fallidos: 0,
+      codigo_used: true,
+      updated_at: new Date().toISOString()
+    })
+    .eq('usuario_id', usuarioId);
+
+  if (updateError) {
+    console.error('Error desbloqueando cuenta:', updateError);
+    return { valid: false, error: 'Error desbloqueando cuenta' };
+  }
 
   return { valid: true };
 };
@@ -178,12 +244,18 @@ export const verifyUnlockCode = async (usuarioId, code) => {
  * Reenvía el código de desbloqueo
  */
 export const resendUnlockCode = async (usuarioId) => {
-  const lockRecord = await executeQuery(
-    'SELECT bloqueado FROM account_lock WHERE usuario_id = ?',
-    [usuarioId]
-  );
+  const { data: lockRecord, error } = await supabase
+    .from('account_lock')
+    .select('bloqueado')
+    .eq('usuario_id', usuarioId)
+    .limit(1);
 
-  if (lockRecord.length === 0 || lockRecord[0].bloqueado !== 1) {
+  if (error) {
+    console.error('Error verificando bloqueo para reenvío:', error);
+    return { success: false, error: 'Error verificando estado de cuenta' };
+  }
+
+  if (!lockRecord || lockRecord.length === 0 || lockRecord[0].bloqueado !== true) {
     return { success: false, error: 'La cuenta no está bloqueada' };
   }
 
