@@ -23,13 +23,10 @@ router.get('/', async (req, res) => {
     const userId = req.user.id;
     const userRole = req.user.rol;
     
-    // Obtener horarios con relaciones
+    // Obtener horarios (sin JOIN automático, lo haremos manualmente)
     let horariosQuery = supabase
       .from('horarios_clases')
-      .select(`
-        *,
-        categorias_edad:id_categoria_edad(nombre)
-      `);
+      .select('*');
 
     // Si es un usuario normal (no admin/sensei), filtrar por su categoría
     if (userRole === 'usuario') {
@@ -51,18 +48,12 @@ router.get('/', async (req, res) => {
         // Obtener horarios que coincidan con las categorías del usuario o que no tengan categoría
         const { data: horariosConCategoria, error: error1 } = await supabase
           .from('horarios_clases')
-          .select(`
-            *,
-            categorias_edad:id_categoria_edad(nombre)
-          `)
+          .select('*')
           .in('id_categoria_edad', categoriasIds);
 
         const { data: horariosSinCategoria, error: error2 } = await supabase
           .from('horarios_clases')
-          .select(`
-            *,
-            categorias_edad:id_categoria_edad(nombre)
-          `)
+          .select('*')
           .is('id_categoria_edad', null);
 
         if (error1 || error2) {
@@ -72,15 +63,28 @@ router.get('/', async (req, res) => {
 
         const horarios = [...(horariosConCategoria || []), ...(horariosSinCategoria || [])];
         
+        // Obtener categorías de edad
+        const categoriasIdsParaMap = [...new Set(horarios.map(h => h.id_categoria_edad).filter(Boolean))];
+        let categoriasMapParaUsuario = {};
+        
+        if (categoriasIdsParaMap.length > 0) {
+          const { data: categorias, error: categoriasError } = await supabase
+            .from('categorias_edad')
+            .select('id, nombre')
+            .in('id', categoriasIdsParaMap);
+
+          if (!categoriasError && categorias) {
+            categorias.forEach(c => {
+              categoriasMapParaUsuario[c.id] = c.nombre;
+            });
+          }
+        }
+        
         // Formatear y ordenar
         const horariosFormateados = horarios.map(horario => {
-          const categoria = Array.isArray(horario.categorias_edad) 
-            ? horario.categorias_edad[0] 
-            : horario.categorias_edad;
-
           return {
             ...horario,
-            categoria_edad_nombre: categoria?.nombre || null,
+            categoria_edad_nombre: horario.id_categoria_edad ? categoriasMapParaUsuario[horario.id_categoria_edad] || null : null,
             instructor: horario.instructor || null
           };
         });
@@ -113,32 +117,28 @@ router.get('/', async (req, res) => {
       return res.json([]);
     }
 
-    // Obtener instructores (si el campo instructor es un nombre, buscar el usuario)
-    const instructoresNombres = [...new Set(horarios.map(h => h.instructor).filter(Boolean))];
-    let instructoresMap = {};
+    // Obtener categorías de edad para los horarios
+    const categoriasIds = [...new Set(horarios.map(h => h.id_categoria_edad).filter(Boolean))];
+    let categoriasMap = {};
     
-    if (instructoresNombres.length > 0) {
-      const { data: usuarios, error: usuariosError } = await supabase
-        .from('usuario')
-        .select('id, nombre_completo')
-        .in('nombre_completo', instructoresNombres);
+    if (categoriasIds.length > 0) {
+      const { data: categorias, error: categoriasError } = await supabase
+        .from('categorias_edad')
+        .select('id, nombre')
+        .in('id', categoriasIds);
 
-      if (!usuariosError && usuarios) {
-        usuarios.forEach(u => {
-          instructoresMap[u.nombre_completo] = u.nombre_completo;
+      if (!categoriasError && categorias) {
+        categorias.forEach(c => {
+          categoriasMap[c.id] = c.nombre;
         });
       }
     }
 
     // Formatear respuesta y ordenar
     const horariosFormateados = horarios.map(horario => {
-      const categoria = Array.isArray(horario.categorias_edad) 
-        ? horario.categorias_edad[0] 
-        : horario.categorias_edad;
-
       return {
         ...horario,
-        categoria_edad_nombre: categoria?.nombre || null,
+        categoria_edad_nombre: horario.id_categoria_edad ? categoriasMap[horario.id_categoria_edad] || null : null,
         instructor: horario.instructor || null
       };
     });
