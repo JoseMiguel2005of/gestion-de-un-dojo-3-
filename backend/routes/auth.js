@@ -245,14 +245,18 @@ router.post('/forgot-password', [
     .isEmail().withMessage('Email debe ser válido')
 ], async (req, res) => {
   try {
+    console.log('📧 Solicitud de recuperación de contraseña recibida');
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.error('❌ Errores de validación:', errors.array());
       return res.status(400).json({ errors: errors.array() });
     }
 
     const { email } = req.body;
+    console.log(`   Email solicitado: ${email}`);
 
     // Buscar usuario por email
+    console.log('   Buscando usuario en la base de datos...');
     const { data: users, error: userError } = await supabase
       .from('usuario')
       .select('id, username, email, nombre_completo')
@@ -261,61 +265,123 @@ router.post('/forgot-password', [
       .limit(1);
 
     // Siempre devolver el mismo mensaje por seguridad (no revelar si el email existe)
-    if (userError || !users || users.length === 0) {
+    if (userError) {
+      console.error('❌ Error buscando usuario:', userError);
+      return res.json({ 
+        message: 'Si el email existe, se le enviará un correo de recuperación' 
+      });
+    }
+
+    if (!users || users.length === 0) {
+      console.log('   Usuario no encontrado con ese email');
       return res.json({ 
         message: 'Si el email existe, se le enviará un correo de recuperación' 
       });
     }
 
     const user = users[0];
+    console.log(`   ✅ Usuario encontrado: ${user.username} (ID: ${user.id})`);
 
     // Generar token único y seguro
     const resetToken = crypto.randomBytes(32).toString('hex');
+    console.log(`   Token generado: ${resetToken.substring(0, 10)}...`);
     
     // Calcular fecha de expiración (15 minutos)
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+    console.log(`   Token expira en: ${expiresAt.toISOString()}`);
 
     // Eliminar tokens anteriores no usados del mismo usuario
-    await supabase
+    console.log('   Eliminando tokens anteriores...');
+    const { error: deleteError } = await supabase
       .from('password_reset_tokens')
       .delete()
       .eq('usuario_id', user.id)
-      .eq('used', false);
+      .or('used.eq.false,used.eq.0');
+
+    if (deleteError) {
+      console.error('⚠️ Error eliminando tokens anteriores (continuando):', deleteError);
+    }
 
     // Guardar token en la base de datos
-    const { error: insertError } = await supabase
+    console.log('   Guardando nuevo token en la base de datos...');
+    console.log('   Datos a insertar:', {
+      usuario_id: user.id,
+      token: resetToken.substring(0, 10) + '...',
+      expires_at: expiresAt.toISOString(),
+      used: 0
+    });
+    
+    // Intentar con 0 primero (tipo numérico), si falla intentar con false (tipo boolean)
+    let insertedData;
+    let insertError;
+    
+    // Primero intentar con 0 (numérico)
+    const result1 = await supabase
       .from('password_reset_tokens')
       .insert({
         usuario_id: user.id,
         token: resetToken,
         expires_at: expiresAt.toISOString(),
-        used: false
-      });
+        used: 0
+      })
+      .select();
+    
+    if (result1.error) {
+      console.log('   Intentando con used: false (boolean)...');
+      // Si falla, intentar con false (boolean)
+      const result2 = await supabase
+        .from('password_reset_tokens')
+        .insert({
+          usuario_id: user.id,
+          token: resetToken,
+          expires_at: expiresAt.toISOString(),
+          used: false
+        })
+        .select();
+      
+      insertedData = result2.data;
+      insertError = result2.error;
+    } else {
+      insertedData = result1.data;
+      insertError = result1.error;
+    }
 
     if (insertError) {
-      console.error('Error guardando token de reset:', insertError);
-      throw new Error('Error guardando token de recuperación');
+      console.error('❌ Error guardando token de reset:');
+      console.error('   Código:', insertError.code);
+      console.error('   Mensaje:', insertError.message);
+      console.error('   Detalles:', insertError.details);
+      console.error('   Hint:', insertError.hint);
+      throw new Error(`Error guardando token de recuperación: ${insertError.message}`);
     }
+    console.log('   ✅ Token guardado exitosamente:', insertedData);
 
     // Construir URL de reset (usar la URL del frontend)
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8080';
     const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
+    console.log(`   URL de reset: ${resetUrl}`);
 
     // Enviar correo
     try {
+      console.log(`   Enviando correo de recuperación a: ${user.email}`);
       await sendPasswordResetEmail(user.email, resetToken, resetUrl);
-      console.log(`✅ Correo de recuperación enviado a: ${user.email}`);
+      console.log(`✅ Correo de recuperación enviado exitosamente a: ${user.email}`);
     } catch (emailError) {
-      console.error('❌ Error enviando correo:', emailError);
+      console.error('❌ ERROR CRÍTICO enviando correo:');
+      console.error('   Mensaje:', emailError.message);
+      console.error('   Stack:', emailError.stack);
       // No fallar si el correo no se puede enviar, pero loguear el error
     }
 
+    console.log('✅ Proceso de recuperación completado');
     res.json({ 
       message: 'Si el email existe, se le enviará un correo de recuperación'
     });
   } catch (error) {
-    console.error('Error en recuperación de contraseña:', error);
+    console.error('❌ ERROR en recuperación de contraseña:');
+    console.error('   Mensaje:', error.message);
+    console.error('   Stack:', error.stack);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
