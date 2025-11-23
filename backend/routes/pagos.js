@@ -295,7 +295,8 @@ router.put('/config', async (req, res) => {
       metodos_pago,
       datos_bancarios,
       idioma_sistema,
-      pais_configuracion
+      pais_configuracion,
+      tipo_cambio_usd_bs
     } = req.body;
 
     // Construir objeto de actualización dinámicamente
@@ -309,6 +310,7 @@ router.put('/config', async (req, res) => {
     if (datos_bancarios !== undefined) updateData.datos_bancarios = datos_bancarios;
     if (idioma_sistema !== undefined) updateData.idioma_sistema = idioma_sistema;
     if (pais_configuracion !== undefined) updateData.pais_configuracion = pais_configuracion;
+    if (tipo_cambio_usd_bs !== undefined) updateData.tipo_cambio_usd_bs = tipo_cambio_usd_bs;
 
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({ error: 'No se proporcionaron campos para actualizar' });

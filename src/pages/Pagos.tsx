@@ -24,6 +24,7 @@ interface ConfigPagos {
   paypal_email?: string;
   otro_metodo?: string;
   mensualidad_monto?: number;
+  tipo_cambio_usd_bs?: number;
 }
 
 interface Pago {
@@ -293,7 +294,7 @@ export default function Pagos() {
                       )}
                       {configPagos?.moneda === 'USD$' && (
                         <p className="text-sm text-blue-600 dark:text-blue-400">
-                          <span className="font-medium">{getTranslation('commonMessages.equivalent', isEnglish)}</span> BS. {((precioAlumno?.precio_final || 0) * 201).toLocaleString('es-VE', {
+                          <span className="font-medium">{getTranslation('commonMessages.equivalent', isEnglish)}</span> BS. {((precioAlumno?.precio_final || 0) * (configPagos?.tipo_cambio_usd_bs || 220)).toLocaleString('es-VE', {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2
                           })}
@@ -301,7 +302,10 @@ export default function Pagos() {
                       )}
                       {configPagos?.moneda === 'BS.' && (
                         <p className="text-sm text-blue-600 dark:text-blue-400">
-                          <span className="font-medium">{getTranslation('commonMessages.equivalent', isEnglish)}</span> USD$ {Number(precioAlumno?.precio_final || 0).toFixed(2)}
+                          <span className="font-medium">{getTranslation('commonMessages.equivalent', isEnglish)}</span> USD$ {((precioAlumno?.precio_final || 0) / (configPagos?.tipo_cambio_usd_bs || 220)).toLocaleString('es-VE', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          })}
                         </p>
                       )}
                       <p className="text-xs text-blue-600 dark:text-blue-400">

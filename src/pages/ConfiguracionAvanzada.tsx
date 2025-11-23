@@ -78,7 +78,8 @@ export default function ConfiguracionAvanzada() {
     moneda: 'USD$',
     metodos_pago: ['Efectivo', 'Transferencia', 'Pago Móvil'],
     datos_bancarios: '',
-    pais_configuracion: 'venezuela'
+    pais_configuracion: 'venezuela',
+    tipo_cambio_usd_bs: 220
   });
   
   
@@ -767,7 +768,7 @@ export default function ConfiguracionAvanzada() {
                   <li>• <strong>Precio base:</strong> Se toma de la categoría/cinta específica de cada estudiante (en USD$)</li>
                   <li>• <strong>Descuentos:</strong> Se aplican sobre el precio base de la categoría</li>
                   <li>• <strong>Recargos:</strong> Se aplican cuando el pago se hace después del día de corte</li>
-                  <li>• <strong>Conversión BS.:</strong> Si seleccionas BS., se multiplica automáticamente por 201</li>
+                  <li>• <strong>Conversión BS.:</strong> Si seleccionas BS., se multiplica automáticamente por la tasa de cambio configurada (actualmente: {configPagos.tipo_cambio_usd_bs || 220})</li>
                   <li>• <strong>Resultado final:</strong> Precio categoría ± descuentos ± recargos (convertido si es BS.)</li>
                 </ul>
               </div>
@@ -814,7 +815,7 @@ export default function ConfiguracionAvanzada() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="USD$">USD$ - Dólar Americano</SelectItem>
-                      <SelectItem value="BS.">BS. - Bolívar Venezolano (USD × 201)</SelectItem>
+                      <SelectItem value="BS.">BS. - Bolívar Venezolano (USD × {configPagos.tipo_cambio_usd_bs || 220})</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -852,6 +853,21 @@ export default function ConfiguracionAvanzada() {
                   />
                   <p className="text-xs text-muted-foreground mt-1">
                     Recargo adicional por pagar después del día de corte
+                  </p>
+                </div>
+                <div>
+                  <Label>{isEnglish ? "USD to Bs. Exchange Rate" : "Tasa de Cambio USD a Bs."}</Label>
+                  <Input 
+                    type="number" 
+                    min="0" 
+                    step="0.01"
+                    value={configPagos.tipo_cambio_usd_bs || 220}
+                    onChange={(e) => setConfigPagos({...configPagos, tipo_cambio_usd_bs: parseFloat(e.target.value) || 220})}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {isEnglish 
+                      ? "Exchange rate: 1 USD = X Bs. (e.g., 1 USD = 220 Bs.)"
+                      : "Tasa de cambio: 1 USD = X Bs. (ejemplo: 1 USD = 220 Bs.)"}
                   </p>
                 </div>
               </div>
