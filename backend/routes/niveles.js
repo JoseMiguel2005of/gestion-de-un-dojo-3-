@@ -1,5 +1,5 @@
 import express from 'express';
-import { executeQuery } from '../config/database.js';
+import supabase from '../utils/supabaseClient.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { body, validationResult } from 'express-validator';
 
@@ -11,39 +11,60 @@ router.use(authenticateToken);
 // Obtener todas las categorías de edad
 router.get('/categorias-edad', async (req, res) => {
   try {
-    const categorias = await executeQuery(
-      'SELECT * FROM categorias_edad ORDER BY orden'
-    );
-    res.json(categorias);
+    const { data: categorias, error } = await supabase
+      .from('categorias_edad')
+      .select('*')
+      .order('orden', { ascending: true });
+
+    if (error) {
+      console.error('Error obteniendo categorías de edad:', error);
+      return res.status(500).json({ error: 'Error interno del servidor', details: error.message });
+    }
+
+    res.json(categorias || []);
   } catch (error) {
     console.error('Error obteniendo categorías de edad:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
 // Obtener todas las cintas
 router.get('/cintas', async (req, res) => {
   try {
-    const cintas = await executeQuery(
-      'SELECT * FROM cintas ORDER BY orden'
-    );
-    res.json(cintas);
+    const { data: cintas, error } = await supabase
+      .from('cintas')
+      .select('*')
+      .order('orden', { ascending: true });
+
+    if (error) {
+      console.error('Error obteniendo cintas:', error);
+      return res.status(500).json({ error: 'Error interno del servidor', details: error.message });
+    }
+
+    res.json(cintas || []);
   } catch (error) {
     console.error('Error obteniendo cintas:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
 // Obtener todos los niveles (devuelve categorias_old_backup con nivel y cinta)
 router.get('/', async (req, res) => {
   try {
-    const niveles = await executeQuery(
-      'SELECT * FROM categorias_old_backup ORDER BY id'
-    );
-    res.json(niveles);
+    const { data: niveles, error } = await supabase
+      .from('categorias_old_backup')
+      .select('*')
+      .order('id', { ascending: true });
+
+    if (error) {
+      console.error('Error obteniendo niveles:', error);
+      return res.status(500).json({ error: 'Error interno del servidor', details: error.message });
+    }
+
+    res.json(niveles || []);
   } catch (error) {
     console.error('Error obteniendo niveles:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
