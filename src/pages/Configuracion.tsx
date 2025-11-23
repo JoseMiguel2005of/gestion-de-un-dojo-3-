@@ -83,10 +83,9 @@ export default function Configuracion() {
   const loadConfiguration = async () => {
     try {
       const data = await apiClient.getConfiguracion();
-      // Si no hay tema_sidebar o es 'current', usar 'elegant' como predeterminado
-      const temaSidebar = (data.tema_sidebar && data.tema_sidebar !== 'current') 
-        ? data.tema_sidebar 
-        : 'elegant';
+      // Si no hay tema_sidebar, usar 'elegant' como predeterminado
+      // Si es 'current', mantenerlo para que el usuario pueda seleccionarlo
+      const temaSidebar = data.tema_sidebar || 'elegant';
       
       setConfig(prev => ({ 
         ...prev, 
@@ -94,8 +93,8 @@ export default function Configuracion() {
         tema_sidebar: temaSidebar as SidebarTheme
       }));
       
-      // Guardar el tema de sidebar en localStorage si no está guardado o es 'current'
-      if (!localStorage.getItem('sidebar_theme') || data.tema_sidebar === 'current') {
+      // Guardar el tema de sidebar en localStorage si no está guardado
+      if (!localStorage.getItem('sidebar_theme')) {
         localStorage.setItem('sidebar_theme', temaSidebar);
         window.dispatchEvent(new CustomEvent('sidebar-theme-change', { detail: temaSidebar }));
       }
