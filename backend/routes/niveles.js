@@ -73,16 +73,17 @@ router.get('/categorias-edad/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const categorias = await executeQuery(
-      'SELECT * FROM categorias_edad WHERE id = ?',
-      [id]
-    );
+    const { data: categoria, error: catError } = await supabase
+      .from('categorias_edad')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-    if (categorias.length === 0) {
+    if (catError || !categoria) {
       return res.status(404).json({ error: 'Categoría no encontrada' });
     }
 
-    res.json(categorias[0]);
+    res.json(categoria);
   } catch (error) {
     console.error('Error obteniendo categoría:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -94,16 +95,17 @@ router.get('/cintas/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const cintas = await executeQuery(
-      'SELECT * FROM cintas WHERE id = ?',
-      [id]
-    );
+    const { data: cinta, error: cintaError } = await supabase
+      .from('cintas')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-    if (cintas.length === 0) {
+    if (cintaError || !cinta) {
       return res.status(404).json({ error: 'Cinta no encontrada' });
     }
 
-    res.json(cintas[0]);
+    res.json(cinta);
   } catch (error) {
     console.error('Error obteniendo cinta:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -115,16 +117,17 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const niveles = await executeQuery(
-      'SELECT * FROM categorias_old_backup WHERE id = ?',
-      [id]
-    );
+    const { data: nivel, error: nivelError } = await supabase
+      .from('categorias_old_backup')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-    if (niveles.length === 0) {
+    if (nivelError || !nivel) {
       return res.status(404).json({ error: 'Nivel no encontrado' });
     }
 
-    res.json(niveles[0]);
+    res.json(nivel);
   } catch (error) {
     console.error('Error obteniendo nivel:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -145,13 +148,25 @@ router.post('/categorias-edad', [
 
     const { nombre, edad_min, edad_max, precio_mensualidad, orden } = req.body;
     
-    const result = await executeQuery(
-      'INSERT INTO categorias_edad (nombre, edad_min, edad_max, precio_mensualidad, orden) VALUES (?, ?, ?, ?, ?)',
-      [nombre, edad_min, edad_max, precio_mensualidad || null, orden || 99]
-    );
+    const { data: categoria, error: insertError } = await supabase
+      .from('categorias_edad')
+      .insert({
+        nombre,
+        edad_min,
+        edad_max,
+        precio_mensualidad: precio_mensualidad || null,
+        orden: orden || 99
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Error creando categoría de edad:', insertError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: insertError.message });
+    }
 
     res.status(201).json({ 
-      id: result.insertId, 
+      id: categoria.id, 
       message: 'Categoría de edad creada exitosamente' 
     });
   } catch (error) {
@@ -172,13 +187,26 @@ router.post('/cintas', [
 
     const { nombre, nombre_en, color_hex, orden, es_dan, nivel_dan } = req.body;
     
-    const result = await executeQuery(
-      'INSERT INTO cintas (nombre, nombre_en, color_hex, orden, es_dan, nivel_dan) VALUES (?, ?, ?, ?, ?, ?)',
-      [nombre, nombre_en || null, color_hex || '#FFFFFF', orden || 99, es_dan || 0, nivel_dan || null]
-    );
+    const { data: cinta, error: insertError } = await supabase
+      .from('cintas')
+      .insert({
+        nombre,
+        nombre_en: nombre_en || null,
+        color_hex: color_hex || '#FFFFFF',
+        orden: orden || 99,
+        es_dan: es_dan || 0,
+        nivel_dan: nivel_dan || null
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Error creando cinta:', insertError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: insertError.message });
+    }
 
     res.status(201).json({ 
-      id: result.insertId, 
+      id: cinta.id, 
       message: 'Cinta creada exitosamente' 
     });
   } catch (error) {
@@ -203,13 +231,23 @@ router.post('/', [
     console.log('Creando nivel en categorias_old_backup:', { nombre, color, precio_mensualidad });
 
     // Crear en categorias_old_backup con nivel y cinta
-    const result = await executeQuery(
-      'INSERT INTO categorias_old_backup (nivel, cinta, precio_mensualidad) VALUES (?, ?, ?)',
-      [nombre, color || null, precio_mensualidad || null]
-    );
+    const { data: nivel, error: insertError } = await supabase
+      .from('categorias_old_backup')
+      .insert({
+        nivel: nombre,
+        cinta: color || null,
+        precio_mensualidad: precio_mensualidad || null
+      })
+      .select()
+      .single();
+    
+    if (insertError) {
+      console.error('Error creando nivel:', insertError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: insertError.message });
+    }
     
     res.status(201).json({ 
-      id: result.insertId, 
+      id: nivel.id, 
       message: 'Nivel creado exitosamente' 
     });
   } catch (error) {
@@ -233,10 +271,21 @@ router.put('/categorias-edad/:id', [
     const { id } = req.params;
     const { nombre, edad_min, edad_max, precio_mensualidad, orden } = req.body;
 
-    await executeQuery(
-      'UPDATE categorias_edad SET nombre = ?, edad_min = ?, edad_max = ?, precio_mensualidad = ?, orden = ? WHERE id = ?',
-      [nombre, edad_min, edad_max, precio_mensualidad || null, orden || 99, id]
-    );
+    const { error: updateError } = await supabase
+      .from('categorias_edad')
+      .update({
+        nombre,
+        edad_min,
+        edad_max,
+        precio_mensualidad: precio_mensualidad || null,
+        orden: orden || 99
+      })
+      .eq('id', id);
+
+    if (updateError) {
+      console.error('Error actualizando categoría de edad:', updateError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: updateError.message });
+    }
 
     res.json({ message: 'Categoría de edad actualizada exitosamente' });
   } catch (error) {
@@ -258,10 +307,22 @@ router.put('/cintas/:id', [
     const { id } = req.params;
     const { nombre, nombre_en, color_hex, orden, es_dan, nivel_dan } = req.body;
 
-    await executeQuery(
-      'UPDATE cintas SET nombre = ?, nombre_en = ?, color_hex = ?, orden = ?, es_dan = ?, nivel_dan = ? WHERE id = ?',
-      [nombre, nombre_en || null, color_hex || '#FFFFFF', orden || 99, es_dan || 0, nivel_dan || null, id]
-    );
+    const { error: updateError } = await supabase
+      .from('cintas')
+      .update({
+        nombre,
+        nombre_en: nombre_en || null,
+        color_hex: color_hex || '#FFFFFF',
+        orden: orden || 99,
+        es_dan: es_dan || 0,
+        nivel_dan: nivel_dan || null
+      })
+      .eq('id', id);
+
+    if (updateError) {
+      console.error('Error actualizando cinta:', updateError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: updateError.message });
+    }
 
     res.json({ message: 'Cinta actualizada exitosamente' });
   } catch (error) {
@@ -283,10 +344,19 @@ router.put('/:id', [
     const { id } = req.params;
     const { nombre, color, precio_mensualidad } = req.body;
 
-    await executeQuery(
-      'UPDATE categorias_old_backup SET nivel = ?, cinta = ?, precio_mensualidad = ? WHERE id = ?',
-      [nombre, color || null, precio_mensualidad || null, id]
-    );
+    const { error: updateError } = await supabase
+      .from('categorias_old_backup')
+      .update({
+        nivel: nombre,
+        cinta: color || null,
+        precio_mensualidad: precio_mensualidad || null
+      })
+      .eq('id', id);
+
+    if (updateError) {
+      console.error('Error actualizando nivel:', updateError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: updateError.message });
+    }
 
     res.json({ message: 'Nivel actualizado exitosamente' });
   } catch (error) {
@@ -301,21 +371,31 @@ router.delete('/categorias-edad/:id', async (req, res) => {
     const { id } = req.params;
 
     // Verificar si hay alumnos usando esta categoría
-    const alumnos = await executeQuery(
-      'SELECT COUNT(*) as count FROM alumno WHERE id_categoria_edad = ?',
-      [id]
-    );
+    const { count, error: countError } = await supabase
+      .from('alumno')
+      .select('*', { count: 'exact', head: true })
+      .eq('id_categoria_edad', id);
 
-    if (alumnos[0].count > 0) {
+    if (countError) {
+      console.error('Error verificando alumnos:', countError);
+      return res.status(500).json({ error: 'Error interno del servidor' });
+    }
+
+    if (count > 0) {
       return res.status(400).json({ 
         error: 'No se puede eliminar la categoría porque hay alumnos asignados' 
       });
     }
 
-    await executeQuery(
-      'DELETE FROM categorias_edad WHERE id = ?',
-      [id]
-    );
+    const { error: deleteError } = await supabase
+      .from('categorias_edad')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      console.error('Error eliminando categoría:', deleteError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: deleteError.message });
+    }
 
     res.json({ message: 'Categoría eliminada exitosamente' });
   } catch (error) {
@@ -330,21 +410,31 @@ router.delete('/cintas/:id', async (req, res) => {
     const { id } = req.params;
 
     // Verificar si hay alumnos usando esta cinta
-    const alumnos = await executeQuery(
-      'SELECT COUNT(*) as count FROM alumno WHERE id_cinta = ?',
-      [id]
-    );
+    const { count, error: countError } = await supabase
+      .from('alumno')
+      .select('*', { count: 'exact', head: true })
+      .eq('id_cinta', id);
 
-    if (alumnos[0].count > 0) {
+    if (countError) {
+      console.error('Error verificando alumnos:', countError);
+      return res.status(500).json({ error: 'Error interno del servidor' });
+    }
+
+    if (count > 0) {
       return res.status(400).json({ 
         error: 'No se puede eliminar la cinta porque hay alumnos asignados' 
       });
     }
 
-    await executeQuery(
-      'DELETE FROM cintas WHERE id = ?',
-      [id]
-    );
+    const { error: deleteError } = await supabase
+      .from('cintas')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      console.error('Error eliminando cinta:', deleteError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: deleteError.message });
+    }
 
     res.json({ message: 'Cinta eliminada exitosamente' });
   } catch (error) {
@@ -358,15 +448,20 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Nota: id_nivel ya no se usa en alumnos, se eliminó esa columna.
+    // Nota: id_nivel ya no se usa en alumnos, se eliminó esa columna. 
     // categorias_old_backup es una tabla de respaldo/legacy, 
     // pero aún puede ser referenciada en algunas vistas. 
     // Permitir eliminación ya que no hay dependencias críticas.
 
-    await executeQuery(
-      'DELETE FROM categorias_old_backup WHERE id = ?',
-      [id]
-    );
+    const { error: deleteError } = await supabase
+      .from('categorias_old_backup')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      console.error('Error eliminando nivel:', deleteError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: deleteError.message });
+    }
 
     res.json({ message: 'Nivel eliminado exitosamente' });
   } catch (error) {
