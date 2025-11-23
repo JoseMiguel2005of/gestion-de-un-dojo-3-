@@ -1002,6 +1002,58 @@ export const translations = {
     contactDojo: {
       es: "Para más información, contacta a la administración del dojo.",
       en: "For more information, contact the dojo administration."
+    },
+    amountPaid: {
+      es: "Monto pagado:",
+      en: "Amount paid:"
+    },
+    method: {
+      es: "Método:",
+      en: "Method:"
+    },
+    upToDate: {
+      es: "Al día",
+      en: "Up to date"
+    },
+    totalPayments: {
+      es: "Total pagos:",
+      en: "Total payments:"
+    },
+    registered: {
+      es: "registrados",
+      en: "registered"
+    },
+    yourMonthlyFee: {
+      es: "Tu Mensualidad",
+      en: "Your Monthly Fee"
+    },
+    amountOfMonthlyFee: {
+      es: "Monto de tu mensualidad. Asegúrate de realizar tu pago antes del día 5 de cada mes.",
+      en: "Amount of your monthly fee. Make sure to make your payment before the 5th of each month."
+    },
+    baseMonthlyFee: {
+      es: "Monto base de la mensualidad del dojo. Puede variar según categoría y descuentos.",
+      en: "Base amount of the dojo monthly fee. May vary according to category and discounts."
+    },
+    yourExamWillBe: {
+      es: "Tu examen",
+      en: "Your exam"
+    },
+    willBeIn: {
+      es: "será en",
+      en: "will be in"
+    },
+    completed: {
+      es: "completado",
+      en: "completed"
+    },
+    categoryBelt: {
+      es: "Categoría:",
+      en: "Category:"
+    },
+    beltColon: {
+      es: "Cinta:",
+      en: "Belt:"
     }
   }
 };

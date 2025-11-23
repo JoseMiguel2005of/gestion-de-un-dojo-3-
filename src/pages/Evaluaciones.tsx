@@ -198,7 +198,7 @@ export default function Evaluaciones() {
                         </div>
                         {examInfo.categoria && examInfo.cinta && (
                           <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
-                            {isEnglish ? "Category: " : "Categoría: "}{examInfo.categoria} | {isEnglish ? "Belt: " : "Cinta: "}{translateBelt(examInfo.cinta, isEnglish)}
+                            {getTranslation('commonMessages.categoryBelt', isEnglish)} {examInfo.categoria} | {getTranslation('commonMessages.beltColon', isEnglish)} {translateBelt(examInfo.cinta, isEnglish)}
                           </div>
                         )}
                       </div>

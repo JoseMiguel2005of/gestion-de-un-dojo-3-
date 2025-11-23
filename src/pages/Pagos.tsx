@@ -214,7 +214,7 @@ export default function Pagos() {
                   <DollarSign className="h-6 w-6 text-green-600 dark:text-green-400" />
                   <CardTitle className="text-green-700 dark:text-green-400">
                     {isUsuarioNormal 
-                      ? (isEnglish ? 'Your Monthly Fee' : 'Tu Mensualidad')
+                      ? getTranslation('commonMessages.yourMonthlyFee', isEnglish)
                       : (isEnglish ? 'Base Monthly Fee' : 'Mensualidad Base')
                     }
                   </CardTitle>
@@ -241,10 +241,7 @@ export default function Pagos() {
               {isUsuarioNormal ? (
                 <div className="space-y-3">
                   <p className="text-gray-600 dark:text-gray-300">
-                    {isEnglish 
-                      ? "Amount of your monthly fee. Make sure to make your payment before the 5th of each month."
-                      : "Monto de tu mensualidad. Asegúrate de realizar tu pago antes del día 5 de cada mes."
-                    }
+                    {getTranslation('commonMessages.amountOfMonthlyFee', isEnglish)}
                   </p>
                   {precioAlumno && (
                     <div className="text-sm text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-200 dark:border-gray-700 space-y-1">
@@ -315,10 +312,7 @@ export default function Pagos() {
                 </div>
               ) : (
                 <p className="text-gray-600 dark:text-gray-300">
-                  {isEnglish 
-                    ? "Base amount of the dojo monthly fee. May vary according to category and discounts."
-                    : "Monto base de la mensualidad del dojo. Puede variar según categoría y descuentos."
-                  }
+                  {getTranslation('commonMessages.baseMonthlyFee', isEnglish)}
                 </p>
               )}
             </CardContent>
@@ -355,13 +349,13 @@ export default function Pagos() {
                       </Badge>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600 dark:text-gray-300">{isEnglish ? "Amount paid:" : "Monto pagado:"}</span>
+                      <span className="text-gray-600 dark:text-gray-300">{getTranslation('commonMessages.amountPaid', isEnglish)}</span>
                       <span className="font-semibold text-green-600 dark:text-green-400">
                         {formatPrice(lastPayment.monto)}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600 dark:text-gray-300">{isEnglish ? "Method:" : "Método:"}</span>
+                      <span className="text-gray-600 dark:text-gray-300">{getTranslation('commonMessages.method', isEnglish)}</span>
                       <Badge variant="outline" className="border-gray-300 dark:border-gray-600">
                         {isEnglish && lastPayment.metodo_pago === 'Transferencia' ? 'Transfer' : 
                          isEnglish && lastPayment.metodo_pago === 'Pago Móvil' ? 'Mobile Payment' : 
@@ -369,10 +363,10 @@ export default function Pagos() {
                       </Badge>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600 dark:text-gray-300">{isEnglish ? "Status:" : "Estado:"}</span>
+                      <span className="text-gray-600 dark:text-gray-300">{getTranslation('commonMessages.status', isEnglish)}</span>
                       <Badge className="bg-green-600 hover:bg-green-700">
                         <CheckCircle className="h-3 w-3 mr-1" />
-                        {isEnglish ? "Up to date" : "Al día"}
+                        {getTranslation('commonMessages.upToDate', isEnglish)}
                       </Badge>
                     </div>
                   </>
@@ -393,9 +387,9 @@ export default function Pagos() {
                 {misPagos.length > 0 && (
                   <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600 dark:text-gray-300">{isEnglish ? "Total payments:" : "Total pagos:"}</span>
+                      <span className="text-gray-600 dark:text-gray-300">{getTranslation('commonMessages.totalPayments', isEnglish)}</span>
                       <Badge variant="outline" className="border-blue-300 dark:border-blue-600">
-                        {misPagos.length} {isEnglish ? "registered" : "registrados"}
+                        {misPagos.length} {getTranslation('commonMessages.registered', isEnglish)}
                       </Badge>
                     </div>
                   </div>
