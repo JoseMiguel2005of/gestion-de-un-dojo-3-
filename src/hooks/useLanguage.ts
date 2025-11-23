@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { apiClient } from '@/lib/api';
 
 export interface LanguageConfig {
@@ -11,6 +11,9 @@ export function useLanguage() {
     isEnglish: false,
     currency: 'BS.'
   });
+
+  // Usar useRef para mantener el valor actual de currency sin depender del closure
+  const currencyRef = useRef<string>('BS.');
 
   useEffect(() => {
     const loadLanguageConfig = async () => {
@@ -42,6 +45,8 @@ export function useLanguage() {
           currency = 'BS.';
         }
         
+        // Actualizar el ref y el estado
+        currencyRef.current = currency;
         setLanguageConfig({
           isEnglish: userLanguage === 'en',
           currency: currency
@@ -49,6 +54,7 @@ export function useLanguage() {
       } catch (error) {
         console.error('Error loading language config:', error);
         // Default to Spanish
+        currencyRef.current = 'BS.';
         setLanguageConfig({
           isEnglish: false,
           currency: 'BS.'
@@ -65,11 +71,11 @@ export function useLanguage() {
       if (event?.detail?.idioma_preferido) {
         const newLanguage = event.detail.idioma_preferido;
         const newIsEnglish = newLanguage === 'en';
-        // Forzar actualización del estado
-        setLanguageConfig({
+        // Forzar actualización del estado usando el ref para currency
+        setLanguageConfig(prev => ({
           isEnglish: newIsEnglish,
-          currency: languageConfig.currency // Mantener la moneda actual
-        });
+          currency: prev.currency // Usar el valor anterior del estado
+        }));
         // Log para debugging
         console.log('🌐 Idioma cambiado a:', newLanguage, 'isEnglish:', newIsEnglish);
       }
