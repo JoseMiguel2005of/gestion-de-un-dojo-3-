@@ -530,13 +530,15 @@ export default function Dashboard() {
             {/* Botón Crear Evaluación - Solo instructores y superiores */}
             {(isAdmin || user?.rol === 'instructor' || user?.rol === 'asistente') && (
               <Card 
-                className="bg-gradient-to-br from-blue-600 to-blue-700 border-none hover:shadow-2xl transition-all cursor-pointer hover:scale-105"
+                className="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-600 hover:shadow-lg transition-all cursor-pointer"
                 onClick={() => navigate("/evaluaciones")}
               >
                 <CardContent className="pt-12 pb-12 flex flex-col items-center justify-center text-center space-y-3">
-                  <FileText className="h-12 w-12 text-blue-100" />
-                  <p className="text-xl font-bold text-white">{isEnglish ? "Create Evaluation" : "Crear Evaluación"}</p>
-                  <p className="text-sm text-blue-200">{isEnglish ? "New level test" : "Nueva prueba de nivel"}</p>
+                  <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
+                    <FileText className="h-10 w-10 text-blue-700 dark:text-blue-500" />
+                  </div>
+                  <p className="text-xl font-semibold text-gray-900 dark:text-white">{isEnglish ? "Create Evaluation" : "Crear Evaluación"}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{isEnglish ? "New level test" : "Nueva prueba de nivel"}</p>
                 </CardContent>
               </Card>
             )}
@@ -544,13 +546,15 @@ export default function Dashboard() {
             {/* Botón Ver Reportes - Solo admin y sensei */}
             {(isAdmin || user?.rol === 'instructor') && (
               <Card 
-                className="bg-gradient-to-br from-yellow-400 to-orange-500 border-none hover:shadow-2xl transition-all cursor-pointer hover:scale-105"
+                className="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 hover:border-amber-500 dark:hover:border-amber-600 hover:shadow-lg transition-all cursor-pointer"
                 onClick={() => navigate("/reportes")}
               >
                 <CardContent className="pt-12 pb-12 flex flex-col items-center justify-center text-center space-y-3">
-                  <BarChart3 className="h-12 w-12 text-gray-900" />
-                  <p className="text-xl font-bold text-gray-900">{isEnglish ? "View Reports" : "Ver Reportes"}</p>
-                  <p className="text-sm text-gray-800">{isEnglish ? "Dojo statistics" : "Estadísticas del dojo"}</p>
+                  <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-lg">
+                    <BarChart3 className="h-10 w-10 text-amber-700 dark:text-amber-500" />
+                  </div>
+                  <p className="text-xl font-semibold text-gray-900 dark:text-white">{isEnglish ? "View Reports" : "Ver Reportes"}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{isEnglish ? "Dojo statistics" : "Estadísticas del dojo"}</p>
                 </CardContent>
               </Card>
             )}
