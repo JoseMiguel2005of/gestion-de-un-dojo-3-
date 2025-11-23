@@ -130,7 +130,12 @@ router.post('/login', [
     });
   } catch (error) {
     console.error('Error en login:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Error interno del servidor',
+      details: error.message || 'Error desconocido',
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
