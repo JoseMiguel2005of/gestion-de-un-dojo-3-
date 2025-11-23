@@ -2,7 +2,7 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { executeQuery } from '../config/database.js';
+import supabase from '../utils/supabaseClient.js';
 import { generateToken } from '../middleware/auth.js';
 import { registrarLog, LogActions, LogModules } from '../utils/logger.js';
 import { body, validationResult } from 'express-validator';
@@ -31,12 +31,19 @@ router.post('/login', [
 
     console.log('🔍 Intento de login con email:', email);
 
-    const users = await executeQuery(
-      'SELECT id, username, email, password_hash, nombre_completo, rol, estado, idioma_preferido FROM usuario WHERE email = ? AND estado = 1',
-      [email]
-    );
+    const { data: users, error: userError } = await supabase
+      .from('usuario')
+      .select('id, username, email, password_hash, nombre_completo, rol, estado, idioma_preferido')
+      .eq('email', email)
+      .eq('estado', true)
+      .limit(1);
 
-    if (users.length === 0) {
+    if (userError) {
+      console.error('Error consultando usuario:', userError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: userError.message });
+    }
+
+    if (!users || users.length === 0) {
       console.log('❌ Usuario no encontrado:', email);
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
@@ -144,37 +151,56 @@ router.post('/register', [
 
     const { email, username, password, nombre_completo } = req.body;
 
-    const existingEmail = await executeQuery(
-      'SELECT id FROM usuario WHERE email = ?',
-      [email]
-    );
+    // Verificar si el email ya existe
+    const { data: existingEmail } = await supabase
+      .from('usuario')
+      .select('id')
+      .eq('email', email)
+      .limit(1);
 
-    if (existingEmail.length > 0) {
+    if (existingEmail && existingEmail.length > 0) {
       return res.status(400).json({ error: 'El email ya está registrado' });
     }
 
-    const existingUsers = await executeQuery(
-      'SELECT id FROM usuario WHERE username = ?',
-      [username]
-    );
+    // Verificar si el username ya existe
+    const { data: existingUsers } = await supabase
+      .from('usuario')
+      .select('id')
+      .eq('username', username)
+      .limit(1);
 
-    if (existingUsers.length > 0) {
+    if (existingUsers && existingUsers.length > 0) {
       return res.status(400).json({ error: 'El nombre de usuario ya existe' });
     }
 
     const password_hash = await bcrypt.hash(password, 10);
 
-    const result = await executeQuery(
-      'INSERT INTO usuario (username, email, password_hash, nombre_completo, rol, estado) VALUES (?, ?, ?, ?, ?, ?)',
-      [username, email, password_hash, nombre_completo, 'usuario', 1]
-    );
+    // Insertar nuevo usuario
+    const { data: newUserData, error: insertError } = await supabase
+      .from('usuario')
+      .insert({
+        username,
+        email,
+        password_hash,
+        nombre_completo,
+        rol: 'usuario',
+        estado: true,
+        activo: true
+      })
+      .select('id, username, email, nombre_completo, rol')
+      .single();
+
+    if (insertError) {
+      console.error('Error insertando usuario:', insertError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: insertError.message });
+    }
 
     const newUser = {
-      id: result.insertId,
-      username,
-      email,
-      nombre_completo,
-      rol: 'usuario'
+      id: newUserData.id,
+      username: newUserData.username,
+      email: newUserData.email,
+      nombre_completo: newUserData.nombre_completo,
+      rol: newUserData.rol
     };
 
     const token = generateToken(newUser);
@@ -203,13 +229,15 @@ router.post('/forgot-password', [
     const { email } = req.body;
 
     // Buscar usuario por email
-    const users = await executeQuery(
-      'SELECT id, username, email, nombre_completo FROM usuario WHERE email = ? AND estado = 1',
-      [email]
-    );
+    const { data: users, error: userError } = await supabase
+      .from('usuario')
+      .select('id, username, email, nombre_completo')
+      .eq('email', email)
+      .eq('estado', true)
+      .limit(1);
 
     // Siempre devolver el mismo mensaje por seguridad (no revelar si el email existe)
-    if (users.length === 0) {
+    if (userError || !users || users.length === 0) {
       return res.json({ 
         message: 'Si el email existe, se le enviará un correo de recuperación' 
       });

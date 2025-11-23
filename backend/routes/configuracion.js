@@ -1,5 +1,5 @@
 import express from 'express';
-import { executeQuery } from '../config/database.js';
+import supabase from '../utils/supabaseClient.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { body, validationResult } from 'express-validator';
 
@@ -11,18 +11,28 @@ const router = express.Router();
 // Obtener todas las configuraciones (público para que el frontend pueda cargar temas)
 router.get('/', async (req, res) => {
   try {
-    const configuraciones = await executeQuery('SELECT * FROM configuracion ORDER BY clave');
+    const { data: configuraciones, error } = await supabase
+      .from('configuracion')
+      .select('*')
+      .order('clave', { ascending: true });
+    
+    if (error) {
+      console.error('Error obteniendo configuraciones:', error);
+      return res.status(500).json({ error: 'Error interno del servidor', details: error.message });
+    }
     
     // Convertir array a objeto clave-valor para facilitar el uso
     const config = {};
-    configuraciones.forEach(item => {
-      config[item.clave] = item.valor;
-    });
+    if (configuraciones) {
+      configuraciones.forEach(item => {
+        config[item.clave] = item.valor;
+      });
+    }
     
     res.json(config);
   } catch (error) {
     console.error('Error obteniendo configuraciones:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
@@ -31,19 +41,25 @@ router.get('/:clave', async (req, res) => {
   try {
     const { clave } = req.params;
     
-    const configs = await executeQuery(
-      'SELECT * FROM configuracion WHERE clave = ?',
-      [clave]
-    );
+    const { data: configs, error } = await supabase
+      .from('configuracion')
+      .select('*')
+      .eq('clave', clave)
+      .limit(1);
 
-    if (configs.length === 0) {
+    if (error) {
+      console.error('Error obteniendo configuración:', error);
+      return res.status(500).json({ error: 'Error interno del servidor', details: error.message });
+    }
+
+    if (!configs || configs.length === 0) {
       return res.status(404).json({ error: 'Configuración no encontrada' });
     }
 
     res.json(configs[0]);
   } catch (error) {
     console.error('Error obteniendo configuración:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
@@ -62,23 +78,31 @@ router.put('/', authenticateToken, [
     // Actualizar cada configuración
     for (const [clave, valor] of Object.entries(configuraciones)) {
       // Verificar si existe
-      const existing = await executeQuery(
-        'SELECT id FROM configuracion WHERE clave = ?',
-        [clave]
-      );
+      const { data: existing } = await supabase
+        .from('configuracion')
+        .select('id')
+        .eq('clave', clave)
+        .limit(1);
 
-      if (existing.length > 0) {
+      if (existing && existing.length > 0) {
         // Actualizar
-        await executeQuery(
-          'UPDATE configuracion SET valor = ? WHERE clave = ?',
-          [valor, clave]
-        );
+        const { error: updateError } = await supabase
+          .from('configuracion')
+          .update({ valor, updated_at: new Date().toISOString() })
+          .eq('clave', clave);
+        
+        if (updateError) {
+          console.error(`Error actualizando configuración ${clave}:`, updateError);
+        }
       } else {
         // Insertar nueva
-        await executeQuery(
-          'INSERT INTO configuracion (clave, valor) VALUES (?, ?)',
-          [clave, valor]
-        );
+        const { error: insertError } = await supabase
+          .from('configuracion')
+          .insert({ clave, valor, tipo: 'texto' });
+        
+        if (insertError) {
+          console.error(`Error insertando configuración ${clave}:`, insertError);
+        }
       }
     }
 
@@ -88,7 +112,7 @@ router.put('/', authenticateToken, [
     });
   } catch (error) {
     console.error('Error actualizando configuraciones:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
@@ -106,23 +130,33 @@ router.put('/:clave', authenticateToken, [
     const { valor } = req.body;
 
     // Verificar si existe
-    const existing = await executeQuery(
-      'SELECT id FROM configuracion WHERE clave = ?',
-      [clave]
-    );
+    const { data: existing } = await supabase
+      .from('configuracion')
+      .select('id')
+      .eq('clave', clave)
+      .limit(1);
 
-    if (existing.length > 0) {
+    if (existing && existing.length > 0) {
       // Actualizar
-      await executeQuery(
-        'UPDATE configuracion SET valor = ? WHERE clave = ?',
-        [valor, clave]
-      );
+      const { error: updateError } = await supabase
+        .from('configuracion')
+        .update({ valor, updated_at: new Date().toISOString() })
+        .eq('clave', clave);
+      
+      if (updateError) {
+        console.error('Error actualizando configuración:', updateError);
+        return res.status(500).json({ error: 'Error interno del servidor', details: updateError.message });
+      }
     } else {
       // Insertar nueva
-      await executeQuery(
-        'INSERT INTO configuracion (clave, valor) VALUES (?, ?)',
-        [clave, valor]
-      );
+      const { error: insertError } = await supabase
+        .from('configuracion')
+        .insert({ clave, valor, tipo: 'texto' });
+      
+      if (insertError) {
+        console.error('Error insertando configuración:', insertError);
+        return res.status(500).json({ error: 'Error interno del servidor', details: insertError.message });
+      }
     }
 
     res.json({ 
@@ -132,7 +166,7 @@ router.put('/:clave', authenticateToken, [
     });
   } catch (error) {
     console.error('Error actualizando configuración:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
@@ -158,16 +192,20 @@ router.post('/reset', authenticateToken, async (req, res) => {
     };
 
     for (const [clave, valor] of Object.entries(defaults)) {
-      await executeQuery(
-        'UPDATE configuracion SET valor = ? WHERE clave = ?',
-        [valor, clave]
-      );
+      const { error } = await supabase
+        .from('configuracion')
+        .update({ valor, updated_at: new Date().toISOString() })
+        .eq('clave', clave);
+      
+      if (error) {
+        console.error(`Error restaurando configuración ${clave}:`, error);
+      }
     }
 
     res.json({ message: 'Configuraciones restauradas a valores por defecto' });
   } catch (error) {
     console.error('Error restaurando configuraciones:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
