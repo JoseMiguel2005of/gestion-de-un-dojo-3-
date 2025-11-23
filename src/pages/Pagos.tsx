@@ -78,14 +78,41 @@ export default function Pagos() {
 
   useEffect(() => {
     loadData();
+    
+    // Recargar configuración cuando la página recibe el foco (por si se cambió en otra pestaña)
+    const handleFocus = () => {
+      loadConfigPagos();
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
+    // También escuchar eventos personalizados de actualización de configuración
+    const handleConfigUpdate = () => {
+      loadConfigPagos();
+    };
+    
+    window.addEventListener('config-updated', handleConfigUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('config-updated', handleConfigUpdate as EventListener);
+    };
   }, []);
+
+  const loadConfigPagos = async () => {
+    try {
+      const config = await apiClient.getConfigPagos();
+      setConfigPagos(config);
+    } catch (error) {
+      console.error('Error cargando configuración de pagos:', error);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
     try {
       
-      const config = await apiClient.getConfigPagos();
-      setConfigPagos(config);
+      await loadConfigPagos();
 
      
       if (isUsuarioNormal) {

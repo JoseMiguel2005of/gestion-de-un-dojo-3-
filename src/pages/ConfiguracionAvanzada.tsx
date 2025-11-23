@@ -254,6 +254,9 @@ export default function ConfiguracionAvanzada() {
     try {
       await apiClient.updateConfigPagos(configPagos);
       toast({ title: "Configuración de pagos guardada" });
+      
+      // Disparar evento para que otras páginas recarguen la configuración
+      window.dispatchEvent(new CustomEvent('config-updated'));
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
