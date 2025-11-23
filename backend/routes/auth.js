@@ -84,6 +84,7 @@ router.post('/login', [
     console.log('🔐 Contraseña válida:', isValidPassword);
     
     if (!isValidPassword) {
+      console.log(`❌ Contraseña incorrecta para usuario: ${user.username} (ID: ${user.id})`);
       // Incrementar intentos fallidos
       try {
         const attemptResult = await incrementFailedAttempts(user.id);
@@ -105,9 +106,15 @@ router.post('/login', [
           message: `Credenciales incorrectas. Te quedan ${attemptResult.remaining} intento(s).`
         });
       } catch (error) {
-        console.error('❌ Error al procesar intentos fallidos:', error);
+        console.error('❌ ERROR al procesar intentos fallidos:');
+        console.error('   Mensaje:', error.message);
+        console.error('   Stack completo:', error.stack);
+        if (error.cause) {
+          console.error('   Causa:', error.cause);
+        }
         // Si falla el bloqueo (probablemente por error al enviar correo), 
         // aún así devolver un error de credenciales para no exponer el problema interno
+        // Pero loguear el error completo para diagnóstico
         return res.status(401).json({ 
           error: 'Credenciales inválidas',
           message: 'Credenciales incorrectas.'

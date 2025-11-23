@@ -59,10 +59,13 @@ const getOrCreateLockRecord = async (usuarioId) => {
  * Incrementa el contador de intentos fallidos
  */
 export const incrementFailedAttempts = async (usuarioId) => {
+  console.log(`🔐 Incrementando intentos fallidos para usuario ID: ${usuarioId}`);
   const lockRecord = await getOrCreateLockRecord(usuarioId);
   
   const nuevosIntentos = (lockRecord.intentos_fallidos || 0) + 1;
   const MAX_ATTEMPTS = 3;
+  
+  console.log(`   Intentos actuales: ${nuevosIntentos}/${MAX_ATTEMPTS}`);
   
   // Actualizar intentos fallidos
   const { error: updateError } = await supabase
@@ -80,6 +83,7 @@ export const incrementFailedAttempts = async (usuarioId) => {
 
   // Si alcanza el límite, bloquear la cuenta
   if (nuevosIntentos >= MAX_ATTEMPTS) {
+    console.log(`⚠️ Límite de intentos alcanzado. Bloqueando cuenta para usuario ID: ${usuarioId}`);
     await blockAccount(usuarioId);
     return { blocked: true, attempts: nuevosIntentos };
   }
@@ -91,6 +95,7 @@ export const incrementFailedAttempts = async (usuarioId) => {
  * Bloquea una cuenta y envía código de desbloqueo
  */
 const blockAccount = async (usuarioId) => {
+  console.log(`🔒 Iniciando bloqueo de cuenta para usuario ID: ${usuarioId}`);
   try {
     // Obtener datos del usuario
     const { data: users, error: userError } = await supabase
@@ -120,8 +125,12 @@ const blockAccount = async (usuarioId) => {
     const unlockCode = generateUnlockCode();
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 30);
+    
+    console.log(`   Código de desbloqueo generado: ${unlockCode}`);
+    console.log(`   Código expira en: ${expiresAt.toISOString()}`);
 
     // Bloquear cuenta y guardar código
+    console.log(`   Guardando código en base de datos...`);
     const { error: blockError } = await supabase
       .from('account_lock')
       .update({
@@ -135,9 +144,11 @@ const blockAccount = async (usuarioId) => {
       .eq('usuario_id', usuarioId);
 
     if (blockError) {
-      console.error('Error bloqueando cuenta:', blockError);
+      console.error('❌ Error bloqueando cuenta:', blockError);
       throw new Error(`Error bloqueando cuenta: ${blockError.message}`);
     }
+    
+    console.log(`✅ Cuenta bloqueada y código guardado en BD`);
 
     // Enviar código por correo
     try {
