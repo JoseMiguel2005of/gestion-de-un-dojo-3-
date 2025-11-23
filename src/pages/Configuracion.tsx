@@ -108,8 +108,20 @@ export default function Configuracion() {
       
       // Guardar el tema inicial para comparar después
       previousThemeRef.current = data.tema_modo || 'light';
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error cargando configuración:', error);
+      
+      // Si hay un error (como 401), usar valores por defecto y NO cambiar localStorage
+      // para evitar sobrescribir con valores incorrectos
+      // Solo actualizar el estado local con valores por defecto
+      setConfig(prev => ({
+        ...prev,
+        tema_sidebar: 'elegant' as SidebarTheme,
+        tema_modo: prev.tema_modo || 'light'
+      }));
+      
+      // NO actualizar localStorage ni disparar evento si hay error
+      // para evitar que se sobrescriba con valores incorrectos
     }
   };
 

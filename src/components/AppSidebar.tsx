@@ -19,18 +19,22 @@ export function AppSidebar() {
   }, []);
 
   useEffect(() => {
-    // Cargar tema desde localStorage al inicio
-    const savedTheme = localStorage.getItem('sidebar_theme') as SidebarTheme;
-    if (savedTheme && ['v1', 'v2', 'classic', 'elegant', 'current'].includes(savedTheme)) {
-      setSidebarTheme(savedTheme);
-    } else {
-      // Si no hay tema guardado o es inválido, usar 'elegant' como predeterminado
-      setSidebarTheme('elegant');
-      localStorage.setItem('sidebar_theme', 'elegant');
-    }
+    // Esperar un momento para que Configuracion.tsx cargue desde la BD primero
+    // Si después de 100ms no hay evento, usar localStorage o 'elegant' por defecto
+    const timeoutId = setTimeout(() => {
+      const savedTheme = localStorage.getItem('sidebar_theme') as SidebarTheme;
+      if (savedTheme && ['v1', 'v2', 'classic', 'elegant', 'current'].includes(savedTheme)) {
+        setSidebarTheme(savedTheme);
+      } else {
+        // Si no hay tema guardado o es inválido, usar 'elegant' como predeterminado
+        setSidebarTheme('elegant');
+        localStorage.setItem('sidebar_theme', 'elegant');
+      }
+    }, 100);
 
     // Escuchar cambios en el tema (disparados desde Configuracion.tsx cuando se carga la BD)
     const handleThemeChange = (e: CustomEvent<SidebarTheme>) => {
+      clearTimeout(timeoutId); // Cancelar el timeout si recibimos un evento
       const newTheme = e.detail;
       if (newTheme && ['v1', 'v2', 'classic', 'elegant', 'current'].includes(newTheme)) {
         setSidebarTheme(newTheme);
@@ -40,6 +44,7 @@ export function AppSidebar() {
 
     window.addEventListener('sidebar-theme-change' as any, handleThemeChange);
     return () => {
+      clearTimeout(timeoutId);
       window.removeEventListener('sidebar-theme-change' as any, handleThemeChange);
     };
   }, []);
