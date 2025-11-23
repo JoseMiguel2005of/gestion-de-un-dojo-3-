@@ -367,16 +367,10 @@ router.get('/logs', async (req, res) => {
   try {
     const limit = req.query.limit ? parseInt(req.query.limit) : 100;
     
-    // Obtener logs con información de usuario
+    // Obtener logs
     const { data: logs, error: logsError } = await supabase
       .from('log_actividades')
-      .select(`
-        *,
-        usuario:usuario_id (
-          username,
-          nombre_completo
-        )
-      `)
+      .select('*')
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -385,11 +379,35 @@ router.get('/logs', async (req, res) => {
       return res.status(500).json({ error: 'Error interno del servidor', details: logsError.message });
     }
 
+    if (!logs || logs.length === 0) {
+      return res.json([]);
+    }
+
+    // Obtener información de usuarios relacionados
+    const usuarioIds = [...new Set(logs.map(log => log.usuario_id).filter(Boolean))];
+    let usuariosMap = {};
+    
+    if (usuarioIds.length > 0) {
+      const { data: usuarios, error: usuariosError } = await supabase
+        .from('usuario')
+        .select('id, username, nombre_completo')
+        .in('id', usuarioIds);
+
+      if (!usuariosError && usuarios) {
+        usuarios.forEach(u => {
+          usuariosMap[u.id] = {
+            username: u.username,
+            nombre_completo: u.nombre_completo
+          };
+        });
+      }
+    }
+
     // Formatear respuesta para compatibilidad
     const logsFormateados = logs.map(log => ({
       ...log,
-      username: log.usuario?.username || null,
-      nombre_completo: log.usuario?.nombre_completo || null
+      username: log.usuario_id ? (usuariosMap[log.usuario_id]?.username || null) : null,
+      nombre_completo: log.usuario_id ? (usuariosMap[log.usuario_id]?.nombre_completo || null) : null
     }));
 
     res.json(logsFormateados);
