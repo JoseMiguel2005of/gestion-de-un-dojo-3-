@@ -93,8 +93,10 @@ export default function Configuracion() {
         tema_sidebar: temaSidebar as SidebarTheme
       }));
       
-      // Guardar el tema de sidebar en localStorage si no está guardado
-      if (!localStorage.getItem('sidebar_theme')) {
+      // Siempre actualizar localStorage y disparar evento para sincronizar con AppSidebar
+      // Esto asegura que si la BD tiene 'current', se muestre SidebarCurrent
+      const currentLocalTheme = localStorage.getItem('sidebar_theme');
+      if (currentLocalTheme !== temaSidebar) {
         localStorage.setItem('sidebar_theme', temaSidebar);
         window.dispatchEvent(new CustomEvent('sidebar-theme-change', { detail: temaSidebar }));
       }
