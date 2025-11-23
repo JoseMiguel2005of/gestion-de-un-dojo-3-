@@ -98,8 +98,8 @@ export function SidebarElegant() {
   }
 
   return (
-    <Sidebar collapsible="icon" side="right" className="border-l border-gray-200 dark:border-gray-700">
-      <SidebarContent className="bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800">
+    <Sidebar collapsible="icon" side="left" className="border-r border-gray-200 dark:border-gray-700">
+      <SidebarContent className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
         {/* Header elegante y clásico */}
         <div className="p-6 border-b border-gray-200 dark:border-gray-800">
           <div className="flex items-center gap-4">
