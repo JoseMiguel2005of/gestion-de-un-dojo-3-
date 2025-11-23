@@ -270,7 +270,7 @@ export default function Pagos() {
                 </div>
                 {configPagos?.moneda === 'USD$' && (
                   <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    <span className="font-medium">{isEnglish ? "Equivalent:" : "Equivalente:"}</span> BS. {((isUsuarioNormal ? (precioAlumno?.precio_final || 0) : (configPagos?.mensualidad_monto || 0)) * 201).toLocaleString('es-VE', {
+                    <span className="font-medium">{isEnglish ? "Equivalent:" : "Equivalente:"}</span> BS. {((isUsuarioNormal ? (precioAlumno?.precio_final || 0) : (configPagos?.mensualidad_monto || 0)) * (configPagos?.tipo_cambio_usd_bs || 220)).toLocaleString('es-VE', {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2
                     })}
