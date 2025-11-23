@@ -35,6 +35,13 @@ class ApiClient {
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
     
+    // Siempre leer el token del localStorage antes de cada petición
+    // para asegurar que esté actualizado
+    const currentToken = localStorage.getItem('auth_token');
+    if (currentToken && currentToken !== this.token) {
+      this.token = currentToken;
+    }
+    
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -46,8 +53,10 @@ class ApiClient {
       });
     }
 
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
+    // Usar el token del localStorage directamente para asegurar que esté actualizado
+    const tokenToUse = currentToken || this.token;
+    if (tokenToUse) {
+      headers['Authorization'] = `Bearer ${tokenToUse}`;
     }
 
     try {

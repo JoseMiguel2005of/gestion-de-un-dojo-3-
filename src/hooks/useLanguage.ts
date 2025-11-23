@@ -61,19 +61,16 @@ export function useLanguage() {
     // Escuchar cambios de idioma
     const handleLanguageChange = async (event?: CustomEvent) => {
       // Si el evento trae el nuevo idioma, actualizar inmediatamente
+      // NO recargar desde la API para evitar perder el token
       if (event?.detail?.idioma_preferido) {
         const newLanguage = event.detail.idioma_preferido;
         setLanguageConfig(prev => ({
           ...prev,
           isEnglish: newLanguage === 'en'
         }));
-      } else {
-        // Si no trae el idioma, recargar desde la API
-        // Agregar un pequeño delay para asegurar que la BD se actualizó
-        setTimeout(() => {
-          loadLanguageConfig();
-        }, 100);
       }
+      // Si no trae el idioma, no hacer nada para evitar peticiones innecesarias
+      // que puedan causar problemas con el token
     };
     
     window.addEventListener('language-change', handleLanguageChange as EventListener);

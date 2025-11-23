@@ -58,9 +58,15 @@ export default function Configuracion() {
   const loadLanguagePreferences = async () => {
     try {
       // Obtener idioma del usuario autenticado desde la base de datos
-      const userData = await apiClient.verifyToken();
-      const lang = userData?.user?.idioma_preferido || 'es';
-      setUserLanguage(lang);
+      // Solo si hay token en localStorage
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        const userData = await apiClient.verifyToken();
+        const lang = userData?.user?.idioma_preferido || 'es';
+        setUserLanguage(lang);
+      } else {
+        setUserLanguage('es'); // Default a español si no hay token
+      }
     } catch (error) {
       console.error('Error loading language preferences:', error);
       setUserLanguage('es'); // Default a español
