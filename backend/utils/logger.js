@@ -1,4 +1,4 @@
-import { executeQuery } from '../config/database.js';
+import supabase from './supabaseClient.js';
 
 /**
  * Registra una actividad en el sistema de logs
@@ -19,13 +19,26 @@ export async function registrarLog({
   user_agent = null
 }) {
   try {
-    const result = await executeQuery(
-      'INSERT INTO log_actividades (usuario_id, accion, modulo, descripcion, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?)',
-      [usuario_id, accion, modulo, descripcion, ip_address, user_agent]
-    );
+    const { data, error } = await supabase
+      .from('log_actividades')
+      .insert({
+        usuario_id,
+        accion,
+        modulo,
+        descripcion,
+        ip_address,
+        user_agent
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error registrando log:', error);
+      return null;
+    }
     
     console.log(`📝 Log registrado: ${accion} en ${modulo} - ${descripcion}`);
-    return result.insertId;
+    return data?.id || null;
   } catch (error) {
     console.error('Error registrando log:', error);
     // No lanzamos el error para que no afecte la operación principal
