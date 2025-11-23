@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, createContext, useContext } from 'react';
 import { apiClient } from '@/lib/api';
 
 export interface LanguageConfig {
@@ -6,7 +6,14 @@ export interface LanguageConfig {
   currency: string;
 }
 
-export function useLanguage() {
+// Crear un contexto para compartir el estado del idioma
+const LanguageContext = createContext<LanguageConfig>({
+  isEnglish: false,
+  currency: 'BS.'
+});
+
+// Provider del contexto de idioma
+export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [isEnglish, setIsEnglish] = useState<boolean>(false);
   const [currency, setCurrency] = useState<string>('BS.');
 
@@ -26,7 +33,7 @@ export function useLanguage() {
             userLanguage = userData?.user?.idioma_preferido || 'es';
           } catch (authError) {
             // Si falla la verificación del token, usar español por defecto
-            console.warn('No se pudo verificar token, usando español por defecto');
+            // No loguear para evitar spam en consola
             userLanguage = 'es';
           }
           
@@ -69,7 +76,14 @@ export function useLanguage() {
         const newLanguage = customEvent.detail.idioma_preferido;
         const newIsEnglish = newLanguage === 'en';
         console.log('🌐 Idioma cambiado a:', newLanguage, 'isEnglish:', newIsEnglish);
-        setIsEnglish(newIsEnglish);
+        // Forzar actualización del estado
+        setIsEnglish(prev => {
+          if (prev !== newIsEnglish) {
+            console.log('🔄 Estado isEnglish cambiado de', prev, 'a', newIsEnglish);
+            return newIsEnglish;
+          }
+          return prev;
+        });
       }
     };
     
@@ -80,7 +94,21 @@ export function useLanguage() {
     };
   }, []);
 
-  return { isEnglish, currency };
+  return (
+    <LanguageContext.Provider value={{ isEnglish, currency }}>
+      {children}
+    </LanguageContext.Provider>
+  );
+}
+
+// Hook para usar el contexto de idioma
+export function useLanguage() {
+  const context = useContext(LanguageContext);
+  if (!context) {
+    // Fallback si no hay provider (no debería pasar)
+    return { isEnglish: false, currency: 'BS.' };
+  }
+  return context;
 }
 
 // Translations object
