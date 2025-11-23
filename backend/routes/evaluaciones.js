@@ -146,16 +146,17 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const evaluaciones = await executeQuery(
-      'SELECT * FROM evaluacion WHERE id = ?',
-      [id]
-    );
+    const { data: evaluacion, error: evalError } = await supabase
+      .from('evaluacion')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-    if (evaluaciones.length === 0) {
+    if (evalError || !evaluacion) {
       return res.status(404).json({ error: 'Evaluación no encontrada' });
     }
 
-    res.json(evaluaciones[0]);
+    res.json(evaluacion);
   } catch (error) {
     console.error('Error obteniendo evaluación:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -177,22 +178,29 @@ router.post('/', [
     const { nombre, fecha, hora, descripcion, instructor_id, alumnos_ids } = req.body;
 
     // Crear la evaluación
-    let result;
-    try {
-      result = await executeQuery(
-        'INSERT INTO evaluacion (nombre, fecha, hora, descripcion) VALUES (?, ?, ?, ?)',
-        [nombre, fecha, hora, descripcion]
-      );
-    } catch (error) {
-      // Si falla, intentar sin la columna hora
-      console.log('Insertando sin columna hora...', error.message);
-      result = await executeQuery(
-        'INSERT INTO evaluacion (nombre, fecha, descripcion) VALUES (?, ?, ?)',
-        [nombre, fecha, descripcion]
-      );
+    let evaluacionData = {
+      nombre,
+      fecha,
+      descripcion: descripcion || null
+    };
+
+    // Intentar incluir hora si está disponible
+    if (hora) {
+      evaluacionData.hora = hora;
     }
 
-    const evaluacionId = result.insertId;
+    const { data: evaluacion, error: evalError } = await supabase
+      .from('evaluacion')
+      .insert(evaluacionData)
+      .select()
+      .single();
+
+    if (evalError) {
+      console.error('Error creando evaluación:', evalError);
+      return res.status(500).json({ error: 'Error creando evaluación', details: evalError.message });
+    }
+
+    const evaluacionId = evaluacion.id;
 
     // Función para extraer la cinta de origen del nombre del examen
     const extraerCintaOrigen = (nombreExamen) => {
@@ -230,14 +238,19 @@ router.post('/', [
         try {
           // Validar que el alumno tenga la cinta correcta
           if (cintaRequerida) {
-            const alumnoData = await executeQuery(
-              'SELECT a.nombre, c.nombre as cinta_nombre FROM alumno a LEFT JOIN cintas c ON a.id_cinta = c.id WHERE a.id = ?',
-              [alumnoId]
-            );
+            const { data: alumnoData, error: alumnoError } = await supabase
+              .from('alumno')
+              .select(`
+                nombre,
+                cintas:id_cinta(nombre)
+              `)
+              .eq('id', alumnoId)
+              .single();
             
-            if (alumnoData.length > 0) {
-              const cintaAlumno = alumnoData[0].cinta_nombre?.toLowerCase() || '';
-              const alumnoNombre = alumnoData[0].nombre;
+            if (!alumnoError && alumnoData) {
+              const cinta = Array.isArray(alumnoData.cintas) ? alumnoData.cintas[0] : alumnoData.cintas;
+              const cintaAlumno = cinta?.nombre?.toLowerCase() || '';
+              const alumnoNombre = alumnoData.nombre;
               
               // Validar coincidencia exacta de cinta (incluyendo variantes de género)
               const cintasValidas = {
@@ -253,16 +266,22 @@ router.post('/', [
               const esValida = cintasValidas[cintaRequerida]?.includes(cintaAlumno) || false;
               
               if (!esValida) {
-                alumnosInvalidos.push(`${alumnoNombre} (tiene cinta ${alumnoData[0].cinta_nombre}, requiere ${cintaRequerida})`);
+                alumnosInvalidos.push(`${alumnoNombre} (tiene cinta ${cinta?.nombre || 'N/A'}, requiere ${cintaRequerida})`);
                 continue; // Saltar este alumno
               }
             }
           }
           
-          await executeQuery(
-            'INSERT INTO alumnoevaluacion (id_alumno, id_evaluacion) VALUES (?, ?)',
-            [alumnoId, evaluacionId]
-          );
+          const { error: insertError } = await supabase
+            .from('alumnoevaluacion')
+            .insert({
+              id_alumno: alumnoId,
+              id_evaluacion: evaluacionId
+            });
+          
+          if (insertError) {
+            console.log(`Error agregando alumno ${alumnoId} a evaluación ${evaluacionId}:`, insertError.message);
+          }
         } catch (error) {
           console.log(`Error agregando alumno ${alumnoId} a evaluación ${evaluacionId}:`, error.message);
         }
@@ -308,10 +327,19 @@ router.put('/:id', [
     const { id } = req.params;
     const { nombre, fecha, descripcion } = req.body;
 
-    await executeQuery(
-      'UPDATE evaluacion SET nombre = ?, fecha = ?, descripcion = ? WHERE id = ?',
-      [nombre, fecha, descripcion, id]
-    );
+    const { error: updateError } = await supabase
+      .from('evaluacion')
+      .update({
+        nombre,
+        fecha,
+        descripcion: descripcion || null
+      })
+      .eq('id', id);
+
+    if (updateError) {
+      console.error('Error actualizando evaluación:', updateError);
+      return res.status(500).json({ error: 'Error actualizando evaluación', details: updateError.message });
+    }
 
     res.json({ message: 'Evaluación actualizada exitosamente' });
   } catch (error) {
@@ -326,21 +354,31 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
 
     // Verificar si hay resultados de evaluación asociados
-    const resultados = await executeQuery(
-      'SELECT COUNT(*) as count FROM alumnoevaluacion WHERE id_evaluacion = ?',
-      [id]
-    );
+    const { count, error: countError } = await supabase
+      .from('alumnoevaluacion')
+      .select('*', { count: 'exact', head: true })
+      .eq('id_evaluacion', id);
 
-    if (resultados[0].count > 0) {
+    if (countError) {
+      console.error('Error verificando resultados:', countError);
+      return res.status(500).json({ error: 'Error interno del servidor' });
+    }
+
+    if (count > 0) {
       return res.status(400).json({ 
         error: 'No se puede eliminar la evaluación porque tiene resultados asociados' 
       });
     }
 
-    await executeQuery(
-      'DELETE FROM evaluacion WHERE id = ?',
-      [id]
-    );
+    const { error: deleteError } = await supabase
+      .from('evaluacion')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      console.error('Error eliminando evaluación:', deleteError);
+      return res.status(500).json({ error: 'Error eliminando evaluación', details: deleteError.message });
+    }
 
     // Registrar log de la eliminación
     await registrarLog({
@@ -365,31 +403,67 @@ router.get('/:id/resultados', async (req, res) => {
     const { id } = req.params;
     
     // Primero obtener la fecha de la evaluación
-    const evaluacion = await executeQuery(
-      'SELECT fecha FROM evaluacion WHERE id = ?',
-      [id]
-    );
+    const { data: evaluacion, error: evalError } = await supabase
+      .from('evaluacion')
+      .select('fecha')
+      .eq('id', id)
+      .single();
     
-    if (evaluacion.length === 0) {
+    if (evalError || !evaluacion) {
       return res.status(404).json({ error: 'Evaluación no encontrada' });
     }
     
-    const fechaEvaluacion = evaluacion[0].fecha;
+    const fechaEvaluacion = evaluacion.fecha;
     
-    const resultados = await executeQuery(`
-      SELECT 
-        ae.id,
-        ae.notas,
-        a.nombre as alumno_nombre,
-        a.cedula as alumno_cedula,
-        a.proximo_examen_fecha,
-        a.tiempo_preparacion_meses
-      FROM alumnoevaluacion ae
-      INNER JOIN alumno a ON ae.id_alumno = a.id
-      WHERE ae.id_evaluacion = ?
-        AND a.estado = 1
-        AND (a.proximo_examen_fecha IS NULL OR a.proximo_examen_fecha <= ?)
-    `, [id, fechaEvaluacion]);
+    // Obtener relaciones alumno-evaluación
+    const { data: alumnoEvaluaciones, error: aeError } = await supabase
+      .from('alumnoevaluacion')
+      .select(`
+        id,
+        notas,
+        id_alumno,
+        alumno:id_alumno(
+          nombre,
+          cedula,
+          proximo_examen_fecha,
+          tiempo_preparacion_meses,
+          estado
+        )
+      `)
+      .eq('id_evaluacion', id);
+
+    if (aeError) {
+      console.error('Error obteniendo resultados:', aeError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: aeError.message });
+    }
+
+    // Filtrar y formatear resultados
+    const resultados = (alumnoEvaluaciones || [])
+      .map(ae => {
+        const alumno = Array.isArray(ae.alumno) ? ae.alumno[0] : ae.alumno;
+        if (!alumno || alumno.estado !== true && alumno.estado !== 1) {
+          return null;
+        }
+        
+        // Verificar fecha de próximo examen
+        if (alumno.proximo_examen_fecha) {
+          const fechaProximo = new Date(alumno.proximo_examen_fecha);
+          const fechaEval = new Date(fechaEvaluacion);
+          if (fechaProximo > fechaEval) {
+            return null;
+          }
+        }
+        
+        return {
+          id: ae.id,
+          notas: ae.notas,
+          alumno_nombre: alumno.nombre,
+          alumno_cedula: alumno.cedula,
+          proximo_examen_fecha: alumno.proximo_examen_fecha,
+          tiempo_preparacion_meses: alumno.tiempo_preparacion_meses
+        };
+      })
+      .filter(Boolean);
 
     res.json(resultados);
   } catch (error) {
@@ -411,13 +485,23 @@ router.post('/:id/resultados', [
     const { id } = req.params;
     const { id_alumno, notas } = req.body;
 
-    const result = await executeQuery(
-      'INSERT INTO alumnoevaluacion (id_alumno, id_evaluacion, notas) VALUES (?, ?, ?)',
-      [id_alumno, id, notas]
-    );
+    const { data: resultado, error: insertError } = await supabase
+      .from('alumnoevaluacion')
+      .insert({
+        id_alumno,
+        id_evaluacion: id,
+        notas: notas || null
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Error creando resultado:', insertError);
+      return res.status(500).json({ error: 'Error creando resultado', details: insertError.message });
+    }
 
     res.status(201).json({ 
-      id: result.insertId, 
+      id: resultado.id, 
       message: 'Resultado de evaluación creado exitosamente' 
     });
   } catch (error) {
@@ -430,22 +514,34 @@ router.post('/:id/resultados', [
 router.post('/generar-resultados-aleatorios', async (req, res) => {
   try {
     // Obtener todas las evaluaciones
-    const evaluaciones = await executeQuery(
-      'SELECT id, fecha FROM evaluacion ORDER BY fecha DESC'
-    );
+    const { data: evaluaciones, error: evalError } = await supabase
+      .from('evaluacion')
+      .select('id, fecha')
+      .order('fecha', { ascending: false });
+    
+    if (evalError) {
+      console.error('Error obteniendo evaluaciones:', evalError);
+      return res.status(500).json({ error: 'Error interno del servidor' });
+    }
     
     // Obtener todos los alumnos activos
-    const alumnos = await executeQuery(
-      'SELECT id, nombre, proximo_examen_fecha FROM alumno WHERE estado = 1'
-    );
+    const { data: alumnos, error: alumnosError } = await supabase
+      .from('alumno')
+      .select('id, nombre, proximo_examen_fecha')
+      .eq('estado', true);
+    
+    if (alumnosError) {
+      console.error('Error obteniendo alumnos:', alumnosError);
+      return res.status(500).json({ error: 'Error interno del servidor' });
+    }
     
     let resultadosGenerados = 0;
     
-    for (const evaluacion of evaluaciones) {
+    for (const evaluacion of evaluaciones || []) {
       const fechaEvaluacion = new Date(evaluacion.fecha);
       
       // Filtrar alumnos que pueden presentar esta evaluación
-      const alumnosElegibles = alumnos.filter(alumno => {
+      const alumnosElegibles = (alumnos || []).filter(alumno => {
         if (!alumno.proximo_examen_fecha) return true;
         const fechaProximoExamen = new Date(alumno.proximo_examen_fecha);
         return fechaProximoExamen <= fechaEvaluacion;
@@ -459,14 +555,22 @@ router.post('/generar-resultados-aleatorios', async (req, res) => {
             : 'Necesita más práctica en las técnicas básicas. Recomendamos clases adicionales.';
           
           try {
-            await executeQuery(
-              'INSERT INTO alumnoevaluacion (id_alumno, id_evaluacion, notas) VALUES (?, ?, ?)',
-              [alumno.id, evaluacion.id, comentarios]
-            );
-            resultadosGenerados++;
+            const { error: insertError } = await supabase
+              .from('alumnoevaluacion')
+              .insert({
+                id_alumno: alumno.id,
+                id_evaluacion: evaluacion.id,
+                notas: comentarios
+              });
+            
+            if (!insertError) {
+              resultadosGenerados++;
+            } else {
+              // Si ya existe, no hacer nada
+              console.log(`Resultado ya existe para alumno ${alumno.id} en evaluación ${evaluacion.id}`);
+            }
           } catch (error) {
-            // Si ya existe, no hacer nada
-            console.log(`Resultado ya existe para alumno ${alumno.id} en evaluación ${evaluacion.id}`);
+            console.log(`Error insertando resultado para alumno ${alumno.id}:`, error.message);
           }
         }
       }
@@ -488,45 +592,80 @@ router.get('/debug/usuario/:userId', authenticateToken, async (req, res) => {
     const { userId } = req.params;
     
     // 1. Verificar si el usuario existe
-    const usuario = await executeQuery(
-      'SELECT id, username, nombre_completo, rol FROM usuario WHERE id = ?',
-      [userId]
-    );
+    const { data: usuario, error: usuarioError } = await supabase
+      .from('usuario')
+      .select('id, username, nombre_completo, rol')
+      .eq('id', userId)
+      .single();
     
     // 2. Verificar si tiene registro de alumno
-    const alumno = await executeQuery(
-      'SELECT id, nombre, usuario_id, estado, id_categoria_edad, id_cinta FROM alumno WHERE usuario_id = ?',
-      [userId]
-    );
+    const { data: alumno, error: alumnoError } = await supabase
+      .from('alumno')
+      .select('id, nombre, usuario_id, estado, id_categoria_edad, id_cinta')
+      .eq('usuario_id', userId)
+      .single();
     
     // 3. Verificar evaluaciones donde está inscrito
-    const evaluacionesInscrito = await executeQuery(`
-      SELECT e.id, e.nombre, e.fecha, ae.id as alumnoevaluacion_id
-      FROM evaluacion e
-      INNER JOIN alumnoevaluacion ae ON e.id = ae.id_evaluacion
-      INNER JOIN alumno a ON ae.id_alumno = a.id
-      WHERE a.usuario_id = ?
-    `, [userId]);
+    let evaluacionesInscrito = [];
+    if (alumno) {
+      const { data: alumnoEvals, error: evalError } = await supabase
+        .from('alumnoevaluacion')
+        .select(`
+          id,
+          id_evaluacion,
+          evaluacion:id_evaluacion(
+            id,
+            nombre,
+            fecha
+          )
+        `)
+        .eq('id_alumno', alumno.id);
+      
+      if (!evalError && alumnoEvals) {
+        evaluacionesInscrito = alumnoEvals.map(ae => ({
+          id: ae.evaluacion?.id,
+          nombre: ae.evaluacion?.nombre,
+          fecha: ae.evaluacion?.fecha,
+          alumnoevaluacion_id: ae.id
+        }));
+      }
+    }
     
     // 4. Verificar todas las evaluaciones
-    const todasEvaluaciones = await executeQuery(
-      'SELECT id, nombre, fecha FROM evaluacion ORDER BY fecha DESC'
-    );
+    const { data: todasEvaluaciones } = await supabase
+      .from('evaluacion')
+      .select('id, nombre, fecha')
+      .order('fecha', { ascending: false });
     
     // 5. Verificar todos los registros de alumnoevaluacion
-    const todosAlumnoEvaluaciones = await executeQuery(`
-      SELECT ae.id, ae.id_alumno, ae.id_evaluacion, a.nombre as alumno_nombre, e.nombre as evaluacion_nombre
-      FROM alumnoevaluacion ae
-      INNER JOIN alumno a ON ae.id_alumno = a.id
-      INNER JOIN evaluacion e ON ae.id_evaluacion = e.id
-    `);
+    const { data: todosAlumnoEvaluaciones } = await supabase
+      .from('alumnoevaluacion')
+      .select(`
+        id,
+        id_alumno,
+        id_evaluacion,
+        alumno:id_alumno(nombre),
+        evaluacion:id_evaluacion(nombre)
+      `);
+    
+    const formateados = (todosAlumnoEvaluaciones || []).map(ae => {
+      const alumno = Array.isArray(ae.alumno) ? ae.alumno[0] : ae.alumno;
+      const evaluacion = Array.isArray(ae.evaluacion) ? ae.evaluacion[0] : ae.evaluacion;
+      return {
+        id: ae.id,
+        id_alumno: ae.id_alumno,
+        id_evaluacion: ae.id_evaluacion,
+        alumno_nombre: alumno?.nombre,
+        evaluacion_nombre: evaluacion?.nombre
+      };
+    });
     
     res.json({
-      usuario: usuario[0] || null,
-      alumno: alumno[0] || null,
+      usuario: usuario || null,
+      alumno: alumno || null,
       evaluacionesInscrito,
-      todasEvaluaciones,
-      todosAlumnoEvaluaciones
+      todasEvaluaciones: todasEvaluaciones || [],
+      todosAlumnoEvaluaciones: formateados
     });
   } catch (error) {
     console.error('Error en debug:', error);
