@@ -54,27 +54,49 @@ router.use(authenticateToken);
 // Obtener todos los usuarios
 router.get('/', async (req, res) => {
   try {
-    const usuarios = await executeQuery(
-      'SELECT id, username, email, nombre_completo, rol, estado as activo, ultimo_acceso, fecha_creacion as created_at, idioma_preferido FROM usuario ORDER BY fecha_creacion DESC'
-    );
-    res.json(usuarios);
+    const { data: usuarios, error } = await supabase
+      .from('usuario')
+      .select('id, username, email, nombre_completo, rol, estado, ultimo_acceso, fecha_creacion, idioma_preferido')
+      .order('fecha_creacion', { ascending: false });
+
+    if (error) {
+      console.error('Error obteniendo usuarios:', error);
+      return res.status(500).json({ error: 'Error interno del servidor', details: error.message });
+    }
+
+    // Mapear estado a activo y fecha_creacion a created_at para compatibilidad
+    const usuariosFormateados = usuarios.map(u => ({
+      ...u,
+      activo: u.estado,
+      created_at: u.fecha_creacion
+    }));
+
+    res.json(usuariosFormateados);
   } catch (error) {
     console.error('Error obteniendo usuarios:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
 // Obtener instructores disponibles
 router.get('/instructores', async (req, res) => {
   try {
-    const instructores = await executeQuery(
-      'SELECT id, username, nombre_completo FROM usuario WHERE rol = ? AND estado = 1 ORDER BY nombre_completo ASC',
-      ['instructor']
-    );
-    res.json(instructores);
+    const { data: instructores, error } = await supabase
+      .from('usuario')
+      .select('id, username, nombre_completo')
+      .eq('rol', 'instructor')
+      .eq('estado', 1)
+      .order('nombre_completo', { ascending: true });
+
+    if (error) {
+      console.error('Error obteniendo instructores:', error);
+      return res.status(500).json({ error: 'Error interno del servidor', details: error.message });
+    }
+
+    res.json(instructores || []);
   } catch (error) {
     console.error('Error obteniendo instructores:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
@@ -94,25 +116,43 @@ router.post('/', [
     const { username, email, password, nombre_completo, rol } = req.body;
 
     // Verificar si el usuario ya existe
-    const existingUser = await executeQuery(
-      'SELECT id FROM usuario WHERE username = ? OR email = ?',
-      [username, email]
-    );
+    const { data: existingUser, error: checkError } = await supabase
+      .from('usuario')
+      .select('id')
+      .or(`username.eq.${username},email.eq.${email}`)
+      .limit(1);
 
-    if (existingUser.length > 0) {
+    if (checkError) {
+      console.error('Error verificando usuario existente:', checkError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: checkError.message });
+    }
+
+    if (existingUser && existingUser.length > 0) {
       return res.status(400).json({ error: 'El usuario o email ya existe' });
     }
 
     // Hashear contraseña
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const result = await executeQuery(
-      'INSERT INTO usuario (username, email, password_hash, nombre_completo, rol) VALUES (?, ?, ?, ?, ?)',
-      [username, email, hashedPassword, nombre_completo, rol]
-    );
+    const { data: newUser, error: insertError } = await supabase
+      .from('usuario')
+      .insert([{
+        username,
+        email,
+        password_hash: hashedPassword,
+        nombre_completo,
+        rol
+      }])
+      .select('id')
+      .single();
+
+    if (insertError) {
+      console.error('Error creando usuario:', insertError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: insertError.message });
+    }
 
     res.status(201).json({ 
-      id: result.insertId, 
+      id: newUser.id, 
       message: 'Usuario creado exitosamente' 
     });
   } catch (error) {
@@ -136,17 +176,18 @@ router.put('/cambiar-password', [
     const userId = req.user.id;
 
     // Obtener usuario actual
-    const usuarios = await executeQuery(
-      'SELECT password_hash FROM usuario WHERE id = ?',
-      [userId]
-    );
+    const { data: usuario, error: fetchError } = await supabase
+      .from('usuario')
+      .select('password_hash')
+      .eq('id', userId)
+      .single();
 
-    if (usuarios.length === 0) {
+    if (fetchError || !usuario) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
     // Verificar contraseña actual
-    const validPassword = await bcrypt.compare(password_actual, usuarios[0].password_hash);
+    const validPassword = await bcrypt.compare(password_actual, usuario.password_hash);
     if (!validPassword) {
       return res.status(400).json({ error: 'Contraseña actual incorrecta' });
     }
@@ -155,10 +196,15 @@ router.put('/cambiar-password', [
     const hashedPassword = await bcrypt.hash(password_nueva, 10);
 
     // Actualizar contraseña
-    await executeQuery(
-      'UPDATE usuario SET password_hash = ? WHERE id = ?',
-      [hashedPassword, userId]
-    );
+    const { error: updateError } = await supabase
+      .from('usuario')
+      .update({ password_hash: hashedPassword })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('Error actualizando contraseña:', updateError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: updateError.message });
+    }
 
     res.json({ message: 'Contraseña actualizada exitosamente' });
   } catch (error) {
@@ -181,10 +227,15 @@ router.put('/cambiar-idioma', [
     const userId = req.user.id;
 
     // Actualizar idioma del usuario
-    await executeQuery(
-      'UPDATE usuario SET idioma_preferido = ? WHERE id = ?',
-      [idioma_preferido, userId]
-    );
+    const { error } = await supabase
+      .from('usuario')
+      .update({ idioma_preferido })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Error cambiando idioma:', error);
+      return res.status(500).json({ error: 'Error interno del servidor', details: error.message });
+    }
 
     res.json({ 
       message: 'Idioma actualizado exitosamente',
@@ -214,15 +265,20 @@ router.put('/cambiar-idioma-global', [
     const { idioma_preferido } = req.body;
 
     // Actualizar idioma de TODOS los usuarios
-    const result = await executeQuery(
-      'UPDATE usuario SET idioma_preferido = ?',
-      [idioma_preferido]
-    );
+    const { data, error } = await supabase
+      .from('usuario')
+      .update({ idioma_preferido })
+      .select('id');
+
+    if (error) {
+      console.error('Error cambiando idioma globalmente:', error);
+      return res.status(500).json({ error: 'Error interno del servidor', details: error.message });
+    }
 
     res.json({ 
       message: 'Idioma actualizado globalmente para todos los usuarios',
       idioma_preferido,
-      usuarios_actualizados: result.affectedRows
+      usuarios_actualizados: data ? data.length : 0
     });
   } catch (error) {
     console.error('Error cambiando idioma globalmente:', error);
@@ -236,15 +292,24 @@ router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const { nombre_completo, rol, activo } = req.body;
 
-    await executeQuery(
-      'UPDATE usuario SET nombre_completo = ?, rol = ?, estado = ? WHERE id = ?',
-      [nombre_completo, rol, activo, id]
-    );
+    const { error } = await supabase
+      .from('usuario')
+      .update({
+        nombre_completo,
+        rol,
+        estado: activo
+      })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error actualizando usuario:', error);
+      return res.status(500).json({ error: 'Error interno del servidor', details: error.message });
+    }
 
     res.json({ message: 'Usuario actualizado exitosamente' });
   } catch (error) {
     console.error('Error actualizando usuario:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
@@ -269,18 +334,31 @@ router.post('/log', async (req, res) => {
   try {
     const { usuario_id, accion, modulo, descripcion, ip_address, user_agent } = req.body;
     
-    const result = await executeQuery(
-      'INSERT INTO log_actividades (usuario_id, accion, modulo, descripcion, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?)',
-      [usuario_id, accion, modulo, descripcion, ip_address, user_agent]
-    );
+    const { data: newLog, error } = await supabase
+      .from('log_actividades')
+      .insert([{
+        usuario_id,
+        accion,
+        modulo,
+        descripcion,
+        ip_address,
+        user_agent
+      }])
+      .select('id')
+      .single();
     
+    if (error) {
+      console.error('Error registrando log:', error);
+      return res.status(500).json({ error: 'Error interno del servidor', details: error.message });
+    }
+
     res.json({ 
       message: 'Log registrado exitosamente', 
-      id: result.insertId 
+      id: newLog.id 
     });
   } catch (error) {
     console.error('Error registrando log:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
@@ -289,22 +367,35 @@ router.get('/logs', async (req, res) => {
   try {
     const limit = req.query.limit ? parseInt(req.query.limit) : 100;
     
-    const query = `
-      SELECT 
-        la.*,
-        u.username,
-        u.nombre_completo
-      FROM log_actividades la
-      LEFT JOIN usuario u ON la.usuario_id = u.id
-      ORDER BY la.created_at DESC
-      LIMIT ?
-    `;
-    
-    const logs = await executeQuery(query, [limit]);
-    res.json(logs);
+    // Obtener logs con información de usuario
+    const { data: logs, error: logsError } = await supabase
+      .from('log_actividades')
+      .select(`
+        *,
+        usuario:usuario_id (
+          username,
+          nombre_completo
+        )
+      `)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (logsError) {
+      console.error('Error obteniendo logs:', logsError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: logsError.message });
+    }
+
+    // Formatear respuesta para compatibilidad
+    const logsFormateados = logs.map(log => ({
+      ...log,
+      username: log.usuario?.username || null,
+      nombre_completo: log.usuario?.nombre_completo || null
+    }));
+
+    res.json(logsFormateados);
   } catch (error) {
     console.error('Error obteniendo logs:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
@@ -313,18 +404,43 @@ router.delete('/logs/cleanup', async (req, res) => {
   try {
     const days = req.query.days ? parseInt(req.query.days) : 90;
     
-    const result = await executeQuery(
-      'DELETE FROM log_actividades WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)',
-      [days]
-    );
+    // Calcular fecha límite
+    const fechaLimite = new Date();
+    fechaLimite.setDate(fechaLimite.getDate() - days);
+    
+    // Obtener logs a eliminar primero para contar
+    const { data: logsToDelete, error: fetchError } = await supabase
+      .from('log_actividades')
+      .select('id')
+      .lt('created_at', fechaLimite.toISOString());
+
+    if (fetchError) {
+      console.error('Error obteniendo logs a eliminar:', fetchError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: fetchError.message });
+    }
+
+    const deletedCount = logsToDelete ? logsToDelete.length : 0;
+
+    if (deletedCount > 0) {
+      const idsToDelete = logsToDelete.map(log => log.id);
+      const { error: deleteError } = await supabase
+        .from('log_actividades')
+        .delete()
+        .in('id', idsToDelete);
+
+      if (deleteError) {
+        console.error('Error eliminando logs:', deleteError);
+        return res.status(500).json({ error: 'Error interno del servidor', details: deleteError.message });
+      }
+    }
     
     res.json({ 
-      message: `Se eliminaron ${result.affectedRows} logs anteriores a ${days} días`,
-      deletedCount: result.affectedRows
+      message: `Se eliminaron ${deletedCount} logs anteriores a ${days} días`,
+      deletedCount
     });
   } catch (error) {
     console.error('Error limpiando logs:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
