@@ -75,6 +75,9 @@ interface VerificacionPagoFormProps {
 
 export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: VerificacionPagoFormProps) {
   const [paisConfiguracion, setPaisConfiguracion] = useState<string>('venezuela');
+  const [loading, setLoading] = useState(false);
+  const [esPagoAdelantado, setEsPagoAdelantado] = useState(false);
+  const { isEnglish } = useLanguage();
 
   useEffect(() => {
     // Cargar configuración de país
@@ -88,9 +91,6 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: Verifica
     };
     cargarConfigPais();
   }, []);
-  const [loading, setLoading] = useState(false);
-  const [esPagoAdelantado, setEsPagoAdelantado] = useState(false);
-  const { isEnglish } = useLanguage();
 
   // Crear esquema de validación dinámico basado en el país de configuración
   const validationSchema = useMemo(() => {
@@ -157,7 +157,9 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: Verifica
     },
   });
 
-  // Actualizar el resolver cuando cambie el país o el método de pago
+  const metodoPago = watch("metodo_pago");
+
+  // Actualizar el resolver cuando cambie el país
   useEffect(() => {
     reset({
       monto: String(montoPagar),
