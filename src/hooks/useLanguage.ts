@@ -64,10 +64,14 @@ export function useLanguage() {
       // NO recargar desde la API para evitar perder el token
       if (event?.detail?.idioma_preferido) {
         const newLanguage = event.detail.idioma_preferido;
-        setLanguageConfig(prev => ({
-          ...prev,
-          isEnglish: newLanguage === 'en'
-        }));
+        const newIsEnglish = newLanguage === 'en';
+        // Forzar actualización del estado
+        setLanguageConfig({
+          isEnglish: newIsEnglish,
+          currency: languageConfig.currency // Mantener la moneda actual
+        });
+        // Log para debugging
+        console.log('🌐 Idioma cambiado a:', newLanguage, 'isEnglish:', newIsEnglish);
       }
       // Si no trae el idioma, no hacer nada para evitar peticiones innecesarias
       // que puedan causar problemas con el token

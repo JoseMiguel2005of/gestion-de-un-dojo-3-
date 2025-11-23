@@ -116,9 +116,13 @@ export default function Configuracion() {
           await apiClient.cambiarIdioma(userLanguage);
         }
         // Disparar evento de cambio de idioma con el nuevo idioma para actualización inmediata
-        window.dispatchEvent(new CustomEvent('language-change', { 
-          detail: { idioma_preferido: userLanguage } 
-        }));
+        // Usar setTimeout para asegurar que el evento se dispare después de que se guarde en la BD
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('language-change', { 
+            detail: { idioma_preferido: userLanguage } 
+          }));
+          console.log('🌐 Evento language-change disparado con idioma:', userLanguage);
+        }, 100);
       }
       
       toast({
