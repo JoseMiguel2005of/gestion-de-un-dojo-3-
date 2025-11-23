@@ -125,24 +125,33 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const representantes = await executeQuery(
-      'SELECT * FROM representante WHERE id = ?',
-      [id]
-    );
+    const { data: representante, error: repError } = await supabase
+      .from('representante')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-    if (representantes.length === 0) {
+    if (repError || !representante) {
       return res.status(404).json({ error: 'Representante no encontrado' });
     }
 
-    const representante = representantes[0];
-
     // Obtener alumnos asociados
-    const alumnos = await executeQuery(`
-      SELECT a.id, a.nombre, a.cedula
-      FROM alumno a
-      INNER JOIN alumnorepresentante ar ON a.id = ar.id_alumno
-      WHERE ar.id_representante = ?
-    `, [id]);
+    const { data: alumnosRel, error: alumnosError } = await supabase
+      .from('alumnorepresentante')
+      .select(`
+        id_alumno,
+        alumno:id_alumno(id, nombre, cedula)
+      `)
+      .eq('id_representante', id);
+
+    const alumnos = alumnosRel?.map(rel => {
+      const alumno = Array.isArray(rel.alumno) ? rel.alumno[0] : rel.alumno;
+      return {
+        id: alumno?.id,
+        nombre: alumno?.nombre,
+        cedula: alumno?.cedula
+      };
+    }).filter(a => a.id) || [];
 
     res.json({
       ...representante,
@@ -168,22 +177,28 @@ router.post('/', [
     const { cedula, nombre, telefono } = req.body;
 
     // Verificar si la cédula ya existe
-    const existingRepresentantes = await executeQuery(
-      'SELECT id FROM representante WHERE cedula = ?',
-      [cedula]
-    );
+    const { data: existingRepresentantes, error: existingError } = await supabase
+      .from('representante')
+      .select('id')
+      .eq('cedula', cedula)
+      .limit(1);
 
-    if (existingRepresentantes.length > 0) {
+    if (existingRepresentantes && existingRepresentantes.length > 0) {
       return res.status(400).json({ error: 'Ya existe un representante con esta cédula' });
     }
 
-    const result = await executeQuery(
-      'INSERT INTO representante (cedula, nombre, telefono) VALUES (?, ?, ?)',
-      [cedula, nombre, telefono]
-    );
+    const { data: result, error: insertError } = await supabase
+      .from('representante')
+      .insert([{ cedula, nombre, telefono: telefono || null }])
+      .select()
+      .single();
+
+    if (insertError) {
+      throw insertError;
+    }
 
     res.status(201).json({ 
-      id: result.insertId, 
+      id: result.id, 
       message: 'Representante creado exitosamente' 
     });
   } catch (error) {
@@ -207,19 +222,25 @@ router.put('/:id', [
     const { cedula, nombre, telefono } = req.body;
 
     // Verificar si la cédula ya existe en otro representante
-    const existingRepresentantes = await executeQuery(
-      'SELECT id FROM representante WHERE cedula = ? AND id != ?',
-      [cedula, id]
-    );
+    const { data: existingRepresentantes, error: existingError } = await supabase
+      .from('representante')
+      .select('id')
+      .eq('cedula', cedula)
+      .neq('id', id)
+      .limit(1);
 
-    if (existingRepresentantes.length > 0) {
+    if (existingRepresentantes && existingRepresentantes.length > 0) {
       return res.status(400).json({ error: 'Ya existe otro representante con esta cédula' });
     }
 
-    await executeQuery(
-      'UPDATE representante SET cedula = ?, nombre = ?, telefono = ? WHERE id = ?',
-      [cedula, nombre, telefono, id]
-    );
+    const { error: updateError } = await supabase
+      .from('representante')
+      .update({ cedula, nombre, telefono: telefono || null })
+      .eq('id', id);
+
+    if (updateError) {
+      throw updateError;
+    }
 
     res.json({ message: 'Representante actualizado exitosamente' });
   } catch (error) {
@@ -234,21 +255,29 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
 
     // Verificar si hay alumnos asociados
-    const alumnos = await executeQuery(
-      'SELECT COUNT(*) as count FROM alumnorepresentante WHERE id_representante = ?',
-      [id]
-    );
+    const { count, error: countError } = await supabase
+      .from('alumnorepresentante')
+      .select('*', { count: 'exact', head: true })
+      .eq('id_representante', id);
 
-    if (alumnos[0].count > 0) {
+    if (countError) {
+      throw countError;
+    }
+
+    if ((count || 0) > 0) {
       return res.status(400).json({ 
         error: 'No se puede eliminar el representante porque tiene alumnos asociados' 
       });
     }
 
-    await executeQuery(
-      'DELETE FROM representante WHERE id = ?',
-      [id]
-    );
+    const { error: deleteError } = await supabase
+      .from('representante')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      throw deleteError;
+    }
 
     res.json({ message: 'Representante eliminado exitosamente' });
   } catch (error) {
