@@ -102,6 +102,17 @@ export default function Pagos() {
   const loadConfigPagos = async () => {
     try {
       const config = await apiClient.getConfigPagos();
+      // Asegurar que tipo_cambio_usd_bs sea un número válido
+      if (config.tipo_cambio_usd_bs !== null && config.tipo_cambio_usd_bs !== undefined) {
+        const tasa = Number(config.tipo_cambio_usd_bs);
+        if (!isNaN(tasa) && tasa > 0) {
+          config.tipo_cambio_usd_bs = tasa;
+        } else {
+          config.tipo_cambio_usd_bs = 220;
+        }
+      } else {
+        config.tipo_cambio_usd_bs = 220;
+      }
       setConfigPagos(config);
     } catch (error) {
       console.error('Error cargando configuración de pagos:', error);

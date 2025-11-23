@@ -258,7 +258,19 @@ export default function ConfiguracionAvanzada() {
   const guardarConfigPagos = async () => {
     setLoading(true);
     try {
-      await apiClient.updateConfigPagos(configPagos);
+      // Asegurar que tipo_cambio_usd_bs tenga un valor válido antes de guardar
+      const configToSave = {
+        ...configPagos,
+        tipo_cambio_usd_bs: configPagos.tipo_cambio_usd_bs && configPagos.tipo_cambio_usd_bs > 0 
+          ? configPagos.tipo_cambio_usd_bs 
+          : 220
+      };
+      
+      await apiClient.updateConfigPagos(configToSave);
+      
+      // Actualizar el estado local con el valor guardado
+      setConfigPagos(configToSave);
+      
       toast({ title: "Configuración de pagos guardada" });
       
       // Disparar evento para que otras páginas recarguen la configuración
@@ -870,12 +882,14 @@ export default function ConfiguracionAvanzada() {
                     type="number" 
                     min="0" 
                     step="0.01"
-                    value={configPagos.tipo_cambio_usd_bs ?? 220}
+                    value={configPagos.tipo_cambio_usd_bs && configPagos.tipo_cambio_usd_bs > 0 ? configPagos.tipo_cambio_usd_bs : ''}
+                    placeholder="220"
                     onChange={(e) => {
                       const newValue = e.target.value;
                       // Permitir campo vacío temporalmente mientras el usuario escribe
                       if (newValue === '') {
-                        setConfigPagos({...configPagos, tipo_cambio_usd_bs: 0});
+                        // No actualizar el estado, dejar que el campo esté vacío
+                        setConfigPagos({...configPagos, tipo_cambio_usd_bs: undefined as any});
                       } else {
                         const numValue = parseFloat(newValue);
                         // Solo actualizar si es un número válido
@@ -887,7 +901,7 @@ export default function ConfiguracionAvanzada() {
                     onBlur={(e) => {
                       // Al perder el foco, asegurar que tenga un valor válido
                       const numValue = parseFloat(e.target.value);
-                      if (isNaN(numValue) || numValue < 0) {
+                      if (isNaN(numValue) || numValue <= 0) {
                         setConfigPagos({...configPagos, tipo_cambio_usd_bs: 220});
                       }
                     }}
