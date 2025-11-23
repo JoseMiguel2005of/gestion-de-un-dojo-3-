@@ -16,13 +16,32 @@ export function useLanguage() {
     const loadLanguageConfig = async () => {
       try {
         let userLanguage = 'es';
+        let currency = 'BS.';
         
-        // 1. Intentar obtener idioma del usuario autenticado
-        try {
-          const userData = await apiClient.verifyToken();
-          userLanguage = userData?.user?.idioma_preferido || 'es';
-        } catch (authError) {
-          // Si no está autenticado, obtener idioma del sistema (público)
+        // Verificar si hay token antes de hacer llamadas a la API
+        const token = localStorage.getItem('auth_token');
+        
+        if (token) {
+          // 1. Intentar obtener idioma del usuario autenticado
+          try {
+            const userData = await apiClient.verifyToken();
+            userLanguage = userData?.user?.idioma_preferido || 'es';
+          } catch (authError) {
+            // Si falla la verificación del token, usar español por defecto
+            console.warn('No se pudo verificar token, usando español por defecto');
+            userLanguage = 'es';
+          }
+          
+          // 2. Obtener configuración de moneda (intenta, pero no falla si no está autenticado)
+          try {
+            const config = await apiClient.getConfigPagos();
+            currency = config.moneda || 'BS.';
+          } catch (error) {
+            // Si no puede obtener config, usa default
+            currency = 'BS.';
+          }
+        } else {
+          // Si no hay token, intentar obtener idioma del sistema (público)
           try {
             const sysLang = await apiClient.getIdiomaSistema();
             userLanguage = sysLang?.idioma_sistema || 'es';
@@ -30,16 +49,6 @@ export function useLanguage() {
             // Si todo falla, usar español por defecto
             userLanguage = 'es';
           }
-        }
-        
-        // 2. Obtener configuración de moneda (intenta, pero no falla si no está autenticado)
-        let currency = 'BS.';
-        try {
-          const config = await apiClient.getConfigPagos();
-          currency = config.moneda || 'BS.';
-        } catch (error) {
-          // Si no puede obtener config, usa default
-          currency = 'BS.';
         }
         
         setLanguageConfig({

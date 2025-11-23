@@ -61,9 +61,15 @@ export default function Configuracion() {
       // Solo si hay token en localStorage
       const token = localStorage.getItem('auth_token');
       if (token) {
-        const userData = await apiClient.verifyToken();
-        const lang = userData?.user?.idioma_preferido || 'es';
-        setUserLanguage(lang);
+        try {
+          const userData = await apiClient.verifyToken();
+          const lang = userData?.user?.idioma_preferido || 'es';
+          setUserLanguage(lang);
+        } catch (error) {
+          // Si falla la verificación, usar el idioma actual del hook
+          console.warn('No se pudo cargar preferencias de idioma, usando valor del hook');
+          setUserLanguage(isEnglish ? 'en' : 'es');
+        }
       } else {
         setUserLanguage('es'); // Default a español si no hay token
       }
