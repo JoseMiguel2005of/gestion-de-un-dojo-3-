@@ -1,6 +1,6 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
-import { executeQuery } from '../config/database.js';
+import supabase from '../utils/supabaseClient.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { body, validationResult } from 'express-validator';
 
@@ -10,11 +10,34 @@ const router = express.Router();
 router.get('/idioma-sistema', async (req, res) => {
   try {
     // Obtener el idioma más común en el sistema (el que usan más usuarios)
-    const result = await executeQuery(
-      'SELECT idioma_preferido, COUNT(*) as count FROM usuario GROUP BY idioma_preferido ORDER BY count DESC LIMIT 1'
-    );
+    // Primero obtener todos los usuarios con su idioma
+    const { data: usuarios, error: userError } = await supabase
+      .from('usuario')
+      .select('idioma_preferido');
     
-    const idiomaGlobal = result.length > 0 ? result[0].idioma_preferido : 'es';
+    if (userError) {
+      console.error('Error obteniendo usuarios para idioma:', userError);
+      return res.json({ idioma_sistema: 'es' });
+    }
+    
+    // Contar cuántos usuarios usan cada idioma
+    const idiomaCounts = {};
+    if (usuarios) {
+      usuarios.forEach(user => {
+        const idioma = user.idioma_preferido || 'es';
+        idiomaCounts[idioma] = (idiomaCounts[idioma] || 0) + 1;
+      });
+    }
+    
+    // Encontrar el idioma más común
+    let idiomaGlobal = 'es';
+    let maxCount = 0;
+    for (const [idioma, count] of Object.entries(idiomaCounts)) {
+      if (count > maxCount) {
+        maxCount = count;
+        idiomaGlobal = idioma;
+      }
+    }
     
     res.json({ 
       idioma_sistema: idiomaGlobal || 'es'
