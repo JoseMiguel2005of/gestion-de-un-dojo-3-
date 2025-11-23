@@ -23,6 +23,8 @@ export default function Evaluaciones() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [verDialogOpen, setVerDialogOpen] = useState(false);
   const [evaluacionSeleccionada, setEvaluacionSeleccionada] = useState<any>(null);
+  const [resultadosEvaluacion, setResultadosEvaluacion] = useState<any[]>([]);
+  const [cargandoResultados, setCargandoResultados] = useState(false);
   const [miAlumno, setMiAlumno] = useState<any>(null);
   const [listaMinimizada, setListaMinimizada] = useState(true);
 
@@ -79,9 +81,21 @@ export default function Evaluaciones() {
     }
   };
 
-  const handleVerEvaluacion = (evaluacion: any) => {
+  const handleVerEvaluacion = async (evaluacion: any) => {
     setEvaluacionSeleccionada(evaluacion);
     setVerDialogOpen(true);
+    setCargandoResultados(true);
+    setResultadosEvaluacion([]);
+    
+    try {
+      const resultados = await apiClient.getEvaluacionResultados(evaluacion.id);
+      setResultadosEvaluacion(Array.isArray(resultados) ? resultados : []);
+    } catch (error: any) {
+      console.error('Error cargando resultados:', error);
+      // No mostrar error si no hay resultados, es normal
+    } finally {
+      setCargandoResultados(false);
+    }
   };
 
 
@@ -407,6 +421,40 @@ export default function Evaluaciones() {
                 }`}>
                   {evaluacionSeleccionada.estado === "pendiente" ? (isEnglish ? "Pending" : "Pendiente") : (isEnglish ? "Completed" : "Completado")}
                 </p>
+              </div>
+              
+              {/* Resultados de la evaluación */}
+              <div className="mt-6 border-t pt-4">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 block">
+                  {isEnglish ? "Evaluation Results" : "Resultados de la Evaluación"}
+                </label>
+                {cargandoResultados ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{isEnglish ? "Loading results..." : "Cargando resultados..."}</p>
+                ) : resultadosEvaluacion.length > 0 ? (
+                  <div className="space-y-3 max-h-64 overflow-y-auto">
+                    {resultadosEvaluacion.map((resultado: any) => (
+                      <div key={resultado.id} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-gray-100">{resultado.alumno_nombre}</p>
+                            {resultado.alumno_cedula && (
+                              <p className="text-xs text-gray-500 dark:text-gray-400">ID: {resultado.alumno_cedula}</p>
+                            )}
+                          </div>
+                        </div>
+                        {resultado.notas && (
+                          <p className="text-sm text-gray-700 dark:text-gray-300 mt-2 italic">
+                            "{resultado.notas}"
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {isEnglish ? "No results available yet" : "No hay resultados disponibles aún"}
+                  </p>
+                )}
               </div>
             </div>
           )}

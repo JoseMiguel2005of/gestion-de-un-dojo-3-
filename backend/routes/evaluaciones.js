@@ -353,21 +353,34 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verificar si hay resultados de evaluación asociados
-    const { count, error: countError } = await supabase
+    // Verificar si hay resultados de evaluación asociados (solo los que tienen notas)
+    const { data: resultadosConNotas, error: countError } = await supabase
       .from('alumnoevaluacion')
-      .select('*', { count: 'exact', head: true })
-      .eq('id_evaluacion', id);
+      .select('id')
+      .eq('id_evaluacion', id)
+      .not('notas', 'is', null);
 
     if (countError) {
       console.error('Error verificando resultados:', countError);
       return res.status(500).json({ error: 'Error interno del servidor' });
     }
 
-    if (count > 0) {
+    if (resultadosConNotas && resultadosConNotas.length > 0) {
       return res.status(400).json({ 
-        error: 'No se puede eliminar la evaluación porque tiene resultados asociados' 
+        error: `No se puede eliminar la evaluación porque tiene ${resultadosConNotas.length} resultado(s) con notas asociado(s)` 
       });
+    }
+
+    // Eliminar registros de alumnoevaluacion sin notas antes de eliminar la evaluación
+    const { error: deleteRelError } = await supabase
+      .from('alumnoevaluacion')
+      .delete()
+      .eq('id_evaluacion', id)
+      .is('notas', null);
+
+    if (deleteRelError) {
+      console.error('Error eliminando relaciones sin notas:', deleteRelError);
+      // Continuar con la eliminación de la evaluación aunque falle esto
     }
 
     const { error: deleteError } = await supabase
