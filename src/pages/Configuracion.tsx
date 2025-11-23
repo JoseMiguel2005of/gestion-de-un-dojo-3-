@@ -670,6 +670,32 @@ export default function Configuracion() {
 {isEnglish ? "Traditional and compact style" : "Estilo tradicional y compacto"}
                   </p>
                 </div>
+
+                {/* Tema Elegante */}
+                <div
+                  onClick={() => handleChange('tema_sidebar', 'elegant')}
+                  className={`cursor-pointer p-4 rounded-lg border-2 transition-all ${
+                    config.tema_sidebar === 'elegant'
+                      ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/50'
+                      : 'border-gray-300 dark:border-gray-700 hover:border-amber-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-semibold text-sm">{isEnglish ? "Elegant" : "Elegante"}</h4>
+                    {config.tema_sidebar === 'elegant' && (
+                      <CheckCircle className="h-5 w-5 text-amber-500" />
+                    )}
+                  </div>
+                  <div className="h-24 rounded bg-white dark:bg-gray-900 border-l-4 border-amber-600 dark:border-amber-500 border-r border-t border-b border-gray-200 dark:border-gray-700 p-2 flex flex-col gap-1">
+                    <div className="h-2 bg-gray-200 dark:bg-gray-800 rounded w-3/4"></div>
+                    <div className="h-2 bg-amber-100 dark:bg-amber-950/30 rounded w-full border-l-4 border-amber-600 dark:border-amber-500"></div>
+                    <div className="h-2 bg-gray-200 dark:bg-gray-800 rounded w-2/3"></div>
+                    <div className="h-2 bg-gray-200 dark:bg-gray-800 rounded w-4/5"></div>
+                  </div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
+{isEnglish ? "Classic and refined design with amber accents" : "Diseño clásico y refinado con acentos ámbar"}
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>
