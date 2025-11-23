@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
 
 export interface LanguageConfig {
@@ -11,9 +11,6 @@ export function useLanguage() {
     isEnglish: false,
     currency: 'BS.'
   });
-
-  // Usar useRef para mantener el valor actual de currency sin depender del closure
-  const currencyRef = useRef<string>('BS.');
 
   useEffect(() => {
     const loadLanguageConfig = async () => {
@@ -45,8 +42,6 @@ export function useLanguage() {
           currency = 'BS.';
         }
         
-        // Actualizar el ref y el estado
-        currencyRef.current = currency;
         setLanguageConfig({
           isEnglish: userLanguage === 'en',
           currency: currency
@@ -54,7 +49,6 @@ export function useLanguage() {
       } catch (error) {
         console.error('Error loading language config:', error);
         // Default to Spanish
-        currencyRef.current = 'BS.';
         setLanguageConfig({
           isEnglish: false,
           currency: 'BS.'
@@ -65,28 +59,28 @@ export function useLanguage() {
     loadLanguageConfig();
     
     // Escuchar cambios de idioma
-    const handleLanguageChange = async (event?: CustomEvent) => {
+    const handleLanguageChange = (event: Event) => {
+      const customEvent = event as CustomEvent;
       // Si el evento trae el nuevo idioma, actualizar inmediatamente
-      // NO recargar desde la API para evitar perder el token
-      if (event?.detail?.idioma_preferido) {
-        const newLanguage = event.detail.idioma_preferido;
+      if (customEvent?.detail?.idioma_preferido) {
+        const newLanguage = customEvent.detail.idioma_preferido;
         const newIsEnglish = newLanguage === 'en';
-        // Forzar actualización del estado usando el ref para currency
-        setLanguageConfig(prev => ({
-          isEnglish: newIsEnglish,
-          currency: prev.currency // Usar el valor anterior del estado
-        }));
-        // Log para debugging
-        console.log('🌐 Idioma cambiado a:', newLanguage, 'isEnglish:', newIsEnglish);
+        // Forzar actualización del estado usando la función de actualización
+        // que recibe el estado anterior
+        setLanguageConfig(prev => {
+          console.log('🌐 Idioma cambiado a:', newLanguage, 'isEnglish:', newIsEnglish, 'currency anterior:', prev.currency);
+          return {
+            isEnglish: newIsEnglish,
+            currency: prev.currency // Usar el valor anterior del estado
+          };
+        });
       }
-      // Si no trae el idioma, no hacer nada para evitar peticiones innecesarias
-      // que puedan causar problemas con el token
     };
     
-    window.addEventListener('language-change', handleLanguageChange as EventListener);
+    window.addEventListener('language-change', handleLanguageChange);
     
     return () => {
-      window.removeEventListener('language-change', handleLanguageChange as EventListener);
+      window.removeEventListener('language-change', handleLanguageChange);
     };
   }, []);
 
