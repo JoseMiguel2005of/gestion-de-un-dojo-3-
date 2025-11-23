@@ -85,22 +85,34 @@ router.post('/login', [
     
     if (!isValidPassword) {
       // Incrementar intentos fallidos
-      const attemptResult = await incrementFailedAttempts(user.id);
-      
-      if (attemptResult.blocked) {
-        return res.status(403).json({ 
-          error: 'Cuenta bloqueada',
-          locked: true,
-          message: 'Tu cuenta ha sido bloqueada debido a múltiples intentos fallidos. Se ha enviado un código de desbloqueo a tu correo electrónico.' 
+      try {
+        const attemptResult = await incrementFailedAttempts(user.id);
+        
+        if (attemptResult.blocked) {
+          // La cuenta fue bloqueada, pero puede que el correo no se haya enviado
+          // El código de desbloqueo está guardado en la BD, así que el usuario puede solicitar reenvío
+          return res.status(403).json({ 
+            error: 'Cuenta bloqueada',
+            locked: true,
+            message: 'Tu cuenta ha sido bloqueada debido a múltiples intentos fallidos. Se ha enviado un código de desbloqueo a tu correo electrónico.' 
+          });
+        }
+        
+        return res.status(401).json({ 
+          error: 'Credenciales inválidas',
+          attempts: attemptResult.attempts,
+          remaining: attemptResult.remaining,
+          message: `Credenciales incorrectas. Te quedan ${attemptResult.remaining} intento(s).`
+        });
+      } catch (error) {
+        console.error('❌ Error al procesar intentos fallidos:', error);
+        // Si falla el bloqueo (probablemente por error al enviar correo), 
+        // aún así devolver un error de credenciales para no exponer el problema interno
+        return res.status(401).json({ 
+          error: 'Credenciales inválidas',
+          message: 'Credenciales incorrectas.'
         });
       }
-      
-      return res.status(401).json({ 
-        error: 'Credenciales inválidas',
-        attempts: attemptResult.attempts,
-        remaining: attemptResult.remaining,
-        message: `Credenciales incorrectas. Te quedan ${attemptResult.remaining} intento(s).`
-      });
     }
 
     // Login exitoso - resetear intentos fallidos

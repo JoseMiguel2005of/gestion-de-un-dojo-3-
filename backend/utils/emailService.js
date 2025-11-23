@@ -8,8 +8,10 @@ const emailUser = process.env.EMAIL_USER || 'gestiondojo86@gmail.com';
 const emailPass = process.env.EMAIL_PASS || 'GestionDojo12';
 
 console.log('📧 Configurando servicio de correo...');
-console.log('   Usuario:', emailUser);
-console.log('   Contraseña configurada:', emailPass ? '✅ Sí' : '❌ No');
+console.log('   EMAIL_USER desde env:', process.env.EMAIL_USER ? '✅ Configurado' : '❌ No configurado');
+console.log('   EMAIL_PASS desde env:', process.env.EMAIL_PASS ? '✅ Configurado' : '❌ No configurado');
+console.log('   Usuario final:', emailUser);
+console.log('   Contraseña final configurada:', emailPass ? '✅ Sí (longitud: ' + emailPass.length + ')' : '❌ No');
 
 // Configuración del transporte de correo (Gmail)
 const transporter = nodemailer.createTransport({
@@ -203,19 +205,18 @@ export const verifyEmailConfig = async () => {
  * @param {string} username - Nombre de usuario
  */
 export const sendUnlockCodeEmail = async (to, unlockCode, username) => {
+  if (!emailUser || !emailPass) {
+    console.error('❌ No se puede enviar código de desbloqueo: EMAIL_USER o EMAIL_PASS no configurados.');
+    throw new Error('Configuración de correo incompleta.');
+  }
   try {
     console.log(`📨 Intentando enviar código de desbloqueo a: ${to}`);
-    console.log(`   Usuario de correo configurado: ${emailUser}`);
-    console.log(`   Contraseña configurada: ${emailPass ? 'Sí' : 'No'}`);
+    console.log(`   Usuario de correo: ${emailUser}`);
+    console.log(`   Contraseña configurada: Sí (longitud: ${emailPass.length})`);
     
     // Verificar que el transporte esté configurado
     if (!transporter) {
       throw new Error('Transporte de correo no configurado');
-    }
-
-    // Verificar credenciales
-    if (!emailUser || !emailPass) {
-      throw new Error('Credenciales de correo no configuradas. Configura EMAIL_USER y EMAIL_PASS en Vercel.');
     }
     
     const mailOptions = {
@@ -345,13 +346,21 @@ export const sendUnlockCodeEmail = async (to, unlockCode, username) => {
   } catch (error) {
     console.error('❌ ERROR al enviar código de desbloqueo:');
     console.error('   Destinatario:', to);
-    console.error('   Error completo:', error);
     console.error('   Mensaje:', error.message);
     console.error('   Código:', error.code);
-    console.error('   Respuesta:', error.response);
+    if (error.response) {
+      console.error('   Respuesta del servidor:', error.response);
+    }
+    if (error.stack) {
+      console.error('   Stack:', error.stack);
+    }
     
     // Si es un error de autenticación de Gmail, dar un mensaje más claro
-    if (error.code === 'EAUTH' || error.message.includes('Invalid login')) {
+    if (error.code === 'EAUTH' || error.message.includes('Invalid login') || error.message.includes('authentication')) {
+      console.error('   ⚠️ ERROR DE AUTENTICACIÓN:');
+      console.error('      - Verifica que EMAIL_USER y EMAIL_PASS estén configurados en Vercel');
+      console.error('      - Para Gmail, debes usar una "Contraseña de aplicación" (no tu contraseña normal)');
+      console.error('      - Genera una en: https://myaccount.google.com/apppasswords');
       throw new Error('Error de autenticación con Gmail. Verifica que EMAIL_USER y EMAIL_PASS estén correctamente configurados en Vercel. Para Gmail, necesitas usar una "Contraseña de aplicación" en lugar de tu contraseña normal.');
     }
     
