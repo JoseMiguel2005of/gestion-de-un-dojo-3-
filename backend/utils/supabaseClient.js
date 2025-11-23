@@ -23,13 +23,12 @@ if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
   keyType = 'FALLBACK_ANON_KEY';
 }
 
-// Log para debugging (solo en desarrollo)
-if (process.env.NODE_ENV !== 'production') {
-  console.log(`🔑 Supabase usando: ${keyType}`);
-  if (keyType !== 'SERVICE_ROLE_KEY') {
-    console.warn('⚠️ ADVERTENCIA: No se está usando SERVICE_ROLE_KEY. Esto puede causar problemas de permisos.');
-    console.warn('   Configura SUPABASE_SERVICE_ROLE_KEY en Vercel Environment Variables');
-  }
+// Log para debugging (siempre, para ver qué key se está usando)
+console.log(`🔑 Supabase usando: ${keyType}`);
+if (keyType !== 'SERVICE_ROLE_KEY') {
+  console.warn('⚠️ ADVERTENCIA: No se está usando SERVICE_ROLE_KEY. Esto puede causar problemas de permisos.');
+  console.warn('   Configura SUPABASE_SERVICE_ROLE_KEY en Vercel Environment Variables');
+  console.warn(`   Variables disponibles: SUPABASE_SERVICE_ROLE_KEY=${!!process.env.SUPABASE_SERVICE_ROLE_KEY}, SUPABASE_ANON_KEY=${!!process.env.SUPABASE_ANON_KEY}`);
 }
 
 if (!supabaseUrl || !supabaseKey) {
