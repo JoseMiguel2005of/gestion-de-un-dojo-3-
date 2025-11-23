@@ -89,20 +89,15 @@ export default function Pagos() {
     // También escuchar eventos personalizados de actualización de configuración
     const handleConfigUpdate = () => {
       // Recargar configuración inmediatamente cuando se actualiza
+      console.log('🔄 Evento config-updated recibido, recargando configuración de pagos...');
       loadConfigPagos();
     };
     
     window.addEventListener('config-updated', handleConfigUpdate as EventListener);
     
-    // También escuchar periódicamente para detectar cambios (cada 2 segundos)
-    const intervalId = setInterval(() => {
-      loadConfigPagos();
-    }, 2000);
-    
     return () => {
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('config-updated', handleConfigUpdate as EventListener);
-      clearInterval(intervalId);
     };
   }, []);
 
@@ -120,6 +115,7 @@ export default function Pagos() {
       } else {
         config.tipo_cambio_usd_bs = 220;
       }
+      console.log('💰 Configuración de pagos cargada:', { tipo_cambio_usd_bs: config.tipo_cambio_usd_bs, moneda: config.moneda });
       setConfigPagos(config);
     } catch (error) {
       console.error('Error cargando configuración de pagos:', error);
