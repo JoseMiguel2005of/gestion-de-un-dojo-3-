@@ -42,6 +42,7 @@ export default function Configuracion() {
     dojo_facebook: '',
     dojo_instagram: '',
     dojo_twitter: '',
+    dojo_whatsapp: '',
     dojo_horarios: '',
     dojo_logo_url: '',
     dojo_fondo_url: '',
@@ -401,6 +402,15 @@ export default function Configuracion() {
                   value={config.dojo_twitter}
                   onChange={(e) => handleChange('dojo_twitter', e.target.value)}
                   placeholder={isEnglish ? "https://twitter.com/mydojo" : "https://twitter.com/midojo"}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dojo_whatsapp">WhatsApp</Label>
+                <Input
+                  id="dojo_whatsapp"
+                  value={config.dojo_whatsapp}
+                  onChange={(e) => handleChange('dojo_whatsapp', e.target.value)}
+                  placeholder={isEnglish ? "https://wa.me/1234567890" : "https://wa.me/1234567890"}
                 />
               </div>
             </CardContent>
