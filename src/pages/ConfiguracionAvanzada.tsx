@@ -184,6 +184,12 @@ export default function ConfiguracionAvanzada() {
         if (!data.pais_configuracion) {
           data.pais_configuracion = 'venezuela';
         }
+        // Asegurar que tipo_cambio_usd_bs sea un número válido
+        if (data.tipo_cambio_usd_bs === null || data.tipo_cambio_usd_bs === undefined || isNaN(Number(data.tipo_cambio_usd_bs))) {
+          data.tipo_cambio_usd_bs = 220;
+        } else {
+          data.tipo_cambio_usd_bs = Number(data.tipo_cambio_usd_bs);
+        }
         setConfigPagos({ ...configPagos, ...data });
         setNiveles(nivelesData || []);
         
@@ -864,8 +870,27 @@ export default function ConfiguracionAvanzada() {
                     type="number" 
                     min="0" 
                     step="0.01"
-                    value={configPagos.tipo_cambio_usd_bs || 220}
-                    onChange={(e) => setConfigPagos({...configPagos, tipo_cambio_usd_bs: parseFloat(e.target.value) || 220})}
+                    value={configPagos.tipo_cambio_usd_bs ?? 220}
+                    onChange={(e) => {
+                      const newValue = e.target.value;
+                      // Permitir campo vacío temporalmente mientras el usuario escribe
+                      if (newValue === '') {
+                        setConfigPagos({...configPagos, tipo_cambio_usd_bs: 0});
+                      } else {
+                        const numValue = parseFloat(newValue);
+                        // Solo actualizar si es un número válido
+                        if (!isNaN(numValue) && numValue >= 0) {
+                          setConfigPagos({...configPagos, tipo_cambio_usd_bs: numValue});
+                        }
+                      }
+                    }}
+                    onBlur={(e) => {
+                      // Al perder el foco, asegurar que tenga un valor válido
+                      const numValue = parseFloat(e.target.value);
+                      if (isNaN(numValue) || numValue < 0) {
+                        setConfigPagos({...configPagos, tipo_cambio_usd_bs: 220});
+                      }
+                    }}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
                     {isEnglish 
