@@ -3,10 +3,11 @@ import { SidebarCurrent } from "./sidebars/SidebarCurrent";
 import { SidebarV1 } from "./sidebars/SidebarV1";
 import { SidebarV2 } from "./sidebars/SidebarV2";
 import { SidebarClassic } from "./sidebars/SidebarClassic";
+import { SidebarElegant } from "./sidebars/SidebarElegant";
 import type { SidebarTheme } from "@/hooks/useTheme";
 
 export function AppSidebar() {
-  const [sidebarTheme, setSidebarTheme] = useState<SidebarTheme>('current');
+  const [sidebarTheme, setSidebarTheme] = useState<SidebarTheme>('elegant');
 
   useEffect(() => {
     // Cargar tema desde localStorage
@@ -34,8 +35,10 @@ export function AppSidebar() {
       return <SidebarV2 />;
     case 'classic':
       return <SidebarClassic />;
+    case 'elegant':
+      return <SidebarElegant />;
     case 'current':
     default:
-      return <SidebarCurrent />;
+      return <SidebarElegant />;
   }
 }

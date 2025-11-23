@@ -57,27 +57,29 @@ export function Layout() {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-gradient-to-br from-indigo-950 via-purple-950 to-indigo-900 dark:from-black dark:via-indigo-950 dark:to-black">
-        <AppSidebar />
+      <div className="flex min-h-screen w-full bg-gray-50 dark:bg-gray-950">
         <div className="flex-1 flex flex-col">
-          <header className="sticky top-0 z-10 flex h-16 items-center justify-between backdrop-blur-xl bg-white/10 dark:bg-black/20 border-b border-white/20 px-6 shadow-2xl">
+          <header className="sticky top-0 z-10 flex h-16 items-center justify-between bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 shadow-sm">
             <div className="flex items-center gap-4">
-              <SidebarTrigger className="text-white hover:bg-white/20" />
-              <h1 className="text-xl font-bold text-white">{isEnglish ? "Dojo Management System" : "Sistema de Gestión de Dojo"}</h1>
+              <SidebarTrigger className="text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800" />
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-white tracking-tight">
+                {isEnglish ? "Dojo Management System" : "Sistema de Gestión de Dojo"}
+              </h1>
             </div>
             <Button 
               onClick={handleLogout} 
               variant="outline" 
-              className="gap-2 bg-white/10 hover:bg-white/20 text-white border-white/30 backdrop-blur-sm"
+              className="gap-2 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
             >
               <LogOut className="h-4 w-4" />
               {isEnglish ? "Sign Out" : "Cerrar Sesión"}
             </Button>
           </header>
-          <main className="flex-1 p-6 overflow-auto">
+          <main className="flex-1 p-8 overflow-auto bg-gray-50 dark:bg-gray-950">
             <Outlet />
           </main>
         </div>
+        <AppSidebar />
       </div>
     </SidebarProvider>
   );

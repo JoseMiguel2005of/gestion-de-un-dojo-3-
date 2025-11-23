@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api';
 
-export type SidebarTheme = 'current' | 'v1' | 'v2' | 'classic';
+export type SidebarTheme = 'current' | 'v1' | 'v2' | 'classic' | 'elegant';
 
 interface ThemeConfig {
   tema_modo: 'light' | 'dark';
