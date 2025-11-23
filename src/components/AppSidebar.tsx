@@ -8,6 +8,15 @@ import type { SidebarTheme } from "@/hooks/useTheme";
 
 export function AppSidebar() {
   const [sidebarTheme, setSidebarTheme] = useState<SidebarTheme>('elegant');
+  
+  // Si no hay tema guardado, usar 'elegant' como predeterminado
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('sidebar_theme') as SidebarTheme;
+    if (!savedTheme) {
+      setSidebarTheme('elegant');
+      localStorage.setItem('sidebar_theme', 'elegant');
+    }
+  }, []);
 
   useEffect(() => {
     // Cargar tema desde localStorage

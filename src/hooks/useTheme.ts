@@ -13,7 +13,7 @@ export const useTheme = () => {
   const [theme, setTheme] = useState<ThemeConfig>({
     tema_modo: 'light',
     tema_color_primario: '#0ea5e9',
-    tema_sidebar: 'current',
+    tema_sidebar: 'elegant',
   });
 
   useEffect(() => {
@@ -27,7 +27,7 @@ export const useTheme = () => {
       const newTheme: ThemeConfig = {
         tema_modo: (config.tema_modo as 'light' | 'dark') || 'light',
         tema_color_primario: config.tema_color_primario || '#0ea5e9',
-        tema_sidebar: (config.tema_sidebar as SidebarTheme) || 'current',
+        tema_sidebar: (config.tema_sidebar as SidebarTheme) || 'elegant',
       };
 
       setTheme(newTheme);
