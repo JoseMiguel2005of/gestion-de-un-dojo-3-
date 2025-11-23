@@ -115,19 +115,26 @@ router.post('/', [
 
     const { username, email, password, nombre_completo, rol } = req.body;
 
-    // Verificar si el usuario ya existe
-    const { data: existingUser, error: checkError } = await supabase
+    // Verificar si el usuario ya existe (verificar username y email por separado)
+    const { data: existingUserByUsername, error: checkUsernameError } = await supabase
       .from('usuario')
       .select('id')
-      .or(`username.eq.${username},email.eq.${email}`)
+      .eq('username', username)
       .limit(1);
 
-    if (checkError) {
-      console.error('Error verificando usuario existente:', checkError);
-      return res.status(500).json({ error: 'Error interno del servidor', details: checkError.message });
+    const { data: existingUserByEmail, error: checkEmailError } = await supabase
+      .from('usuario')
+      .select('id')
+      .eq('email', email)
+      .limit(1);
+
+    if (checkUsernameError || checkEmailError) {
+      console.error('Error verificando usuario existente:', checkUsernameError || checkEmailError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: (checkUsernameError || checkEmailError).message });
     }
 
-    if (existingUser && existingUser.length > 0) {
+    if ((existingUserByUsername && existingUserByUsername.length > 0) || 
+        (existingUserByEmail && existingUserByEmail.length > 0)) {
       return res.status(400).json({ error: 'El usuario o email ya existe' });
     }
 
