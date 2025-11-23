@@ -83,7 +83,6 @@ export default function Configuracion() {
   const loadConfiguration = async () => {
     try {
       const data = await apiClient.getConfiguracion();
-      // Si no hay tema_sidebar o es null/undefined/vacío, usar 'elegant' como predeterminado
       // Validar que el tema sea uno de los valores válidos
       const temasValidos: SidebarTheme[] = ['v1', 'v2', 'classic', 'elegant', 'current'];
       let temaSidebar: SidebarTheme = 'elegant';
@@ -96,26 +95,16 @@ export default function Configuracion() {
         temaSidebar = data.tema_sidebar as SidebarTheme;
       }
       
-      // Si el tema es 'current' y no hay preferencia guardada, cambiar a 'elegant' como principal
-      // Esto asegura que 'elegant' sea el predeterminado, pero permite que 'current' se mantenga si el usuario lo eligió
-      const savedTheme = localStorage.getItem('sidebar_theme');
-      if (temaSidebar === 'current' && !savedTheme) {
-        temaSidebar = 'elegant';
-      }
-      
       setConfig(prev => ({ 
         ...prev, 
         ...data, 
         tema_sidebar: temaSidebar
       }));
       
-      // Actualizar localStorage y disparar evento para sincronizar con AppSidebar
-      // Solo actualizar si es diferente al valor actual para evitar cambios innecesarios
-      const currentLocalTheme = localStorage.getItem('sidebar_theme');
-      if (currentLocalTheme !== temaSidebar) {
-        localStorage.setItem('sidebar_theme', temaSidebar);
-        window.dispatchEvent(new CustomEvent('sidebar-theme-change', { detail: temaSidebar }));
-      }
+      // Sincronizar localStorage y AppSidebar con el valor de la BD
+      // Esto asegura que el sidebar muestre lo que está guardado en la BD
+      localStorage.setItem('sidebar_theme', temaSidebar);
+      window.dispatchEvent(new CustomEvent('sidebar-theme-change', { detail: temaSidebar }));
       
       // Guardar el tema inicial para comparar después
       previousThemeRef.current = data.tema_modo || 'light';
@@ -213,13 +202,8 @@ export default function Configuracion() {
   };
 
   const handleChange = (key: string, value: string) => {
+    // Solo actualizar el estado local, NO actualizar el sidebar hasta que se guarde
     setConfig(prev => ({ ...prev, [key]: value }));
-    
-    // Si se cambia el tema del sidebar, actualizar inmediatamente el sidebar
-    if (key === 'tema_sidebar') {
-      localStorage.setItem('sidebar_theme', value);
-      window.dispatchEvent(new CustomEvent('sidebar-theme-change', { detail: value }));
-    }
   };
 
   const toggleTemaMode = () => {
