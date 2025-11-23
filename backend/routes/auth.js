@@ -409,12 +409,20 @@ router.post('/resend-unlock-code', [
 
     const { email } = req.body;
 
-    const users = await executeQuery(
-      'SELECT id FROM usuario WHERE email = ? AND estado = 1',
-      [email]
-    );
+    // Buscar usuario por email usando Supabase
+    const { data: users, error: userError } = await supabase
+      .from('usuario')
+      .select('id')
+      .eq('email', email)
+      .eq('estado', 1)
+      .limit(1);
 
-    if (users.length === 0) {
+    if (userError) {
+      console.error('Error buscando usuario para reenvío:', userError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: userError.message });
+    }
+
+    if (!users || users.length === 0) {
       return res.json({ 
         message: 'Si el email existe y la cuenta está bloqueada, se reenviará el código' 
       });
@@ -432,7 +440,7 @@ router.post('/resend-unlock-code', [
     });
   } catch (error) {
     console.error('Error reenviando código:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
@@ -451,13 +459,20 @@ router.post('/verify-unlock-code', [
 
     const { email, unlockCode } = req.body;
 
-    // Buscar usuario por email
-    const users = await executeQuery(
-      'SELECT id, username FROM usuario WHERE email = ? AND estado = 1',
-      [email]
-    );
+    // Buscar usuario por email usando Supabase
+    const { data: users, error: userError } = await supabase
+      .from('usuario')
+      .select('id, username')
+      .eq('email', email)
+      .eq('estado', 1)
+      .limit(1);
 
-    if (users.length === 0) {
+    if (userError) {
+      console.error('Error buscando usuario:', userError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: userError.message });
+    }
+
+    if (!users || users.length === 0) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
