@@ -34,23 +34,27 @@ async function calcularTiempoPreparacionInteligente(idCategoriaEdad, idCinta) {
   try {
     let categoria = 'Senior';
     if (idCategoriaEdad) {
-      const categoriaData = await executeQuery(
-        'SELECT nombre FROM categorias_edad WHERE id = ?',
-        [idCategoriaEdad]
-      );
-      if (categoriaData.length > 0) {
-        categoria = categoriaData[0].nombre;
+      const { data: categoriaData, error: catError } = await supabase
+        .from('categorias_edad')
+        .select('nombre')
+        .eq('id', idCategoriaEdad)
+        .single();
+      
+      if (!catError && categoriaData) {
+        categoria = categoriaData.nombre;
       }
     }
     
     let cintaNombre = 'Blanco';
     if (idCinta) {
-      const cintaData = await executeQuery(
-        'SELECT nombre FROM cintas WHERE id = ?',
-        [idCinta]
-      );
-      if (cintaData.length > 0) {
-        cintaNombre = cintaData[0].nombre;
+      const { data: cintaData, error: cintaError } = await supabase
+        .from('cintas')
+        .select('nombre')
+        .eq('id', idCinta)
+        .single();
+      
+      if (!cintaError && cintaData) {
+        cintaNombre = cintaData.nombre;
       }
     }
     
@@ -184,73 +188,79 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    let alumnos;
-    try {
-      alumnos = await executeQuery(`
-        SELECT 
-          a.id, a.cedula, a.nombre, a.fecha_nacimiento, a.estado, 
-          a.id_categoria_edad, a.id_cinta, a.usuario_id,
-          a.telefono, a.email, a.direccion,
-          ce.nombre as categoria_edad_nombre,
-          c.nombre as cinta_nombre, c.color_hex as cinta_color
-        FROM alumno a
-        LEFT JOIN categorias_edad ce ON a.id_categoria_edad = ce.id
-        LEFT JOIN cintas c ON a.id_cinta = c.id
-        WHERE a.id = ?
-      `, [id]);
-    } catch (error) {
-      alumnos = await executeQuery(`
-        SELECT 
-          a.id, a.cedula, a.nombre, a.fecha_nacimiento, a.estado, 
-          a.id_categoria_edad, a.id_cinta, a.usuario_id,
-          ce.nombre as categoria_edad_nombre,
-          c.nombre as cinta_nombre
-        FROM alumno a
-        LEFT JOIN categorias_edad ce ON a.id_categoria_edad = ce.id
-        LEFT JOIN cintas c ON a.id_cinta = c.id
-        WHERE a.id = ?
-      `, [id]);
-    }
+    // Obtener alumno con relaciones
+    const { data: alumno, error: alumnoError } = await supabase
+      .from('alumno')
+      .select(`
+        *,
+        categorias_edad:id_categoria_edad(nombre),
+        cintas:id_cinta(nombre, color_hex)
+      `)
+      .eq('id', id)
+      .single();
 
-    if (alumnos.length === 0) {
+    if (alumnoError || !alumno) {
       return res.status(404).json({ error: 'Alumno no encontrado' });
     }
 
-    const alumno = alumnos[0];
+    // Obtener representantes
+    const { data: representantesData, error: repError } = await supabase
+      .from('alumnorepresentante')
+      .select(`
+        id_representante,
+        representante:id_representante(id, cedula, nombre, telefono)
+      `)
+      .eq('id_alumno', id)
+      .limit(1);
 
-    const representantes = await executeQuery(`
-      SELECT r.id, r.cedula, r.nombre, r.telefono
-      FROM representante r
-      INNER JOIN alumnorepresentante ar ON r.id = ar.id_representante
-      WHERE ar.id_alumno = ?
-      LIMIT 1
-    `, [id]);
-
-    if (representantes.length > 0) {
-      alumno.representantes = representantes[0];
-      alumno.representante_id = representantes[0].id;
+    let representante = null;
+    if (!repError && representantesData && representantesData.length > 0) {
+      const rep = Array.isArray(representantesData[0].representante) 
+        ? representantesData[0].representante[0] 
+        : representantesData[0].representante;
+      if (rep) {
+        representante = rep;
+      }
     }
 
-    let telefonos = [];
-    try {
-      telefonos = await executeQuery(`
-        SELECT telefono FROM alumnotelefono WHERE id_alumno = ?
-      `, [id]);
-    } catch (error) {
-    }
+    // Obtener teléfonos adicionales
+    const { data: telefonosData, error: telError } = await supabase
+      .from('alumnotelefono')
+      .select('telefono')
+      .eq('id_alumno', id);
 
-    let direcciones = [];
-    try {
-      direcciones = await executeQuery(`
-        SELECT direccion FROM alumnodireccion WHERE id_alumno = ?
-      `, [id]);
-    } catch (error) {
-    }
+    // Obtener direcciones adicionales
+    const { data: direccionesData, error: dirError } = await supabase
+      .from('alumnodireccion')
+      .select('direccion')
+      .eq('id_alumno', id);
+
+    const categoriaEdad = Array.isArray(alumno.categorias_edad) 
+      ? alumno.categorias_edad[0] 
+      : alumno.categorias_edad;
+    const cinta = Array.isArray(alumno.cintas) 
+      ? alumno.cintas[0] 
+      : alumno.cintas;
 
     res.json({
-      ...alumno,
-      telefonos_adicionales: telefonos.map(t => t.telefono),
-      direcciones_adicionales: direcciones.map(d => d.direccion)
+      id: alumno.id,
+      cedula: alumno.cedula,
+      nombre: alumno.nombre,
+      fecha_nacimiento: alumno.fecha_nacimiento,
+      estado: alumno.estado,
+      id_categoria_edad: alumno.id_categoria_edad,
+      id_cinta: alumno.id_cinta,
+      usuario_id: alumno.usuario_id,
+      telefono: alumno.telefono,
+      email: alumno.email,
+      direccion: alumno.direccion,
+      categoria_edad_nombre: categoriaEdad?.nombre || null,
+      cinta_nombre: cinta?.nombre || null,
+      cinta_color: cinta?.color_hex || null,
+      representantes: representante,
+      representante_id: representante?.id || null,
+      telefonos_adicionales: telefonosData?.map(t => t.telefono) || [],
+      direcciones_adicionales: direccionesData?.map(d => d.direccion) || []
     });
   } catch (error) {
     console.error('Error obteniendo alumno:', error);
@@ -291,12 +301,13 @@ router.post('/', [
       direcciones 
     } = req.body;
 
-    const existingAlumnos = await executeQuery(
-      'SELECT id FROM alumno WHERE cedula = ?',
-      [cedula]
-    );
+    const { data: existingAlumnos, error: existingError } = await supabase
+      .from('alumno')
+      .select('id')
+      .eq('cedula', cedula)
+      .limit(1);
 
-    if (existingAlumnos.length > 0) {
+    if (existingAlumnos && existingAlumnos.length > 0) {
       return res.status(400).json({ error: 'Ya existe un alumno con esta cédula' });
     }
 
@@ -308,33 +319,99 @@ router.post('/', [
 
     let result;
     let alumnoId;
+    
+    // Intentar insertar con todos los campos
+    const alumnoData = {
+      cedula,
+      nombre,
+      fecha_nacimiento,
+      estado: true,
+      id_categoria_edad: id_categoria_edad || null,
+      id_cinta: id_cinta || null,
+      telefono: telefono || null,
+      email: email || null,
+      direccion: direccion || null,
+      contacto_emergencia: contacto_emergencia || null,
+      telefono_emergencia: telefono_emergencia || null,
+      nombre_padre: nombre_padre || null,
+      telefono_padre: telefono_padre || null,
+      nombre_madre: nombre_madre || null,
+      telefono_madre: telefono_madre || null,
+      usuario_id: usuario_id || null,
+      tiempo_preparacion_meses: tiempoPreparacion,
+      proximo_examen_fecha: proximoExamenFecha.toISOString(),
+      fecha_inscripcion: fechaInscripcion.toISOString()
+    };
+
     try {
-      result = await executeQuery(
-        'INSERT INTO alumno (cedula, nombre, fecha_nacimiento, estado, id_categoria_edad, id_cinta, telefono, email, direccion, contacto_emergencia, telefono_emergencia, nombre_padre, telefono_padre, nombre_madre, telefono_madre, usuario_id, tiempo_preparacion_meses, proximo_examen_fecha, fecha_inscripcion) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [cedula, nombre, fecha_nacimiento, id_categoria_edad || null, id_cinta || null, telefono || null, email || null, direccion || null, contacto_emergencia || null, telefono_emergencia || null, nombre_padre || null, telefono_padre || null, nombre_madre || null, telefono_madre || null, usuario_id || null, tiempoPreparacion, proximoExamenFecha, fechaInscripcion]
-      );
-      alumnoId = result.insertId;
+      const { data: insertResult, error: insertError } = await supabase
+        .from('alumno')
+        .insert([alumnoData])
+        .select()
+        .single();
+      
+      if (insertError) {
+        throw insertError;
+      }
+      
+      result = insertResult;
+      alumnoId = result.id;
       console.log('Alumno creado con resultado:', result, 'ID:', alumnoId);
     } catch (error) {
       console.log('Primer intento falló, intentando versión reducida:', error.message);
-      console.error('Error SQL:', error.sql);
-      console.error('Error SQL Message:', error.sqlMessage);
+      
+      // Intentar con campos mínimos
+      const alumnoDataReduced = {
+        cedula,
+        nombre,
+        fecha_nacimiento,
+        estado: true,
+        id_categoria_edad: id_categoria_edad || null,
+        id_cinta: id_cinta || null,
+        tiempo_preparacion_meses: tiempoPreparacion,
+        proximo_examen_fecha: proximoExamenFecha.toISOString(),
+        fecha_inscripcion: fechaInscripcion.toISOString()
+      };
+      
       try {
-        result = await executeQuery(
-          'INSERT INTO alumno (cedula, nombre, fecha_nacimiento, estado, id_categoria_edad, id_cinta, tiempo_preparacion_meses, proximo_examen_fecha, fecha_inscripcion) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)',
-          [cedula, nombre, fecha_nacimiento, id_categoria_edad || null, id_cinta || null, tiempoPreparacion, proximoExamenFecha, fechaInscripcion]
-        );
-        alumnoId = result.insertId;
+        const { data: insertResult2, error: insertError2 } = await supabase
+          .from('alumno')
+          .insert([alumnoDataReduced])
+          .select()
+          .single();
+        
+        if (insertError2) {
+          throw insertError2;
+        }
+        
+        result = insertResult2;
+        alumnoId = result.id;
         console.log('Alumno creado con versión reducida, resultado:', result, 'ID:', alumnoId);
       } catch (error2) {
         console.log('Segundo intento falló, intentando versión mínima:', error2.message);
-        console.error('Error SQL:', error2.sql);
-        console.error('Error SQL Message:', error2.sqlMessage);
-        result = await executeQuery(
-          'INSERT INTO alumno (cedula, nombre, fecha_nacimiento, estado, id_categoria_edad, id_cinta) VALUES (?, ?, ?, 1, ?, ?)',
-          [cedula, nombre, fecha_nacimiento, id_categoria_edad || null, id_cinta || null]
-        );
-        alumnoId = result.insertId;
+        
+        // Intentar con campos absolutamente mínimos
+        const alumnoDataMin = {
+          cedula,
+          nombre,
+          fecha_nacimiento,
+          estado: true,
+          id_categoria_edad: id_categoria_edad || null,
+          id_cinta: id_cinta || null
+        };
+        
+        const { data: insertResult3, error: insertError3 } = await supabase
+          .from('alumno')
+          .insert([alumnoDataMin])
+          .select()
+          .single();
+        
+        if (insertError3) {
+          throw insertError3;
+        }
+        
+        result = insertResult3;
+        alumnoId = result.id;
         console.log('Alumno creado con versión mínima, resultado:', result, 'ID:', alumnoId);
       }
     }
@@ -345,17 +422,18 @@ router.post('/', [
 
     // Asignar instructor aleatorio automáticamente
     try {
-      const instructores = await executeQuery(
-        'SELECT id FROM usuario WHERE rol = ? AND estado = 1',
-        ['instructor']
-      );
+      const { data: instructores, error: instructoresError } = await supabase
+        .from('usuario')
+        .select('id')
+        .eq('rol', 'instructor')
+        .eq('estado', 1);
       
-      if (instructores.length > 0) {
+      if (!instructoresError && instructores && instructores.length > 0) {
         const instructorAleatorio = instructores[Math.floor(Math.random() * instructores.length)];
-        await executeQuery(
-          'UPDATE alumno SET sensei_id = ? WHERE id = ?',
-          [instructorAleatorio.id, alumnoId]
-        );
+        await supabase
+          .from('alumno')
+          .update({ sensei_id: instructorAleatorio.id })
+          .eq('id', alumnoId);
       }
     } catch (error) {
       console.log('No se pudo asignar instructor automáticamente:', error.message);
@@ -363,10 +441,9 @@ router.post('/', [
 
     if (id_representante) {
       try {
-        await executeQuery(
-          'INSERT INTO alumnorepresentante (id_alumno, id_representante) VALUES (?, ?)',
-          [alumnoId, id_representante]
-        );
+        await supabase
+          .from('alumnorepresentante')
+          .insert([{ id_alumno: alumnoId, id_representante: id_representante }]);
       } catch (error) {
         console.log('No se pudo asociar representante:', error.message);
       }
@@ -375,10 +452,9 @@ router.post('/', [
     if (representantes && representantes.length > 0) {
       for (const representanteId of representantes) {
         try {
-          await executeQuery(
-            'INSERT INTO alumnorepresentante (id_alumno, id_representante) VALUES (?, ?)',
-            [alumnoId, representanteId]
-          );
+          await supabase
+            .from('alumnorepresentante')
+            .insert([{ id_alumno: alumnoId, id_representante: representanteId }]);
         } catch (error) {
           console.log(`No se pudo asociar representante ${representanteId}:`, error.message);
         }
@@ -388,10 +464,9 @@ router.post('/', [
     if (telefonos && telefonos.length > 0) {
       for (const tel of telefonos) {
         try {
-          await executeQuery(
-            'INSERT INTO alumnotelefono (id_alumno, telefono) VALUES (?, ?)',
-            [alumnoId, tel]
-          );
+          await supabase
+            .from('alumnotelefono')
+            .insert([{ id_alumno: alumnoId, telefono: tel }]);
         } catch (error) {
           console.log(`No se pudo agregar teléfono ${tel}:`, error.message);
         }
@@ -401,10 +476,9 @@ router.post('/', [
     if (direcciones && direcciones.length > 0) {
       for (const dir of direcciones) {
         try {
-          await executeQuery(
-            'INSERT INTO alumnodireccion (id_alumno, direccion) VALUES (?, ?)',
-            [alumnoId, dir]
-          );
+          await supabase
+            .from('alumnodireccion')
+            .insert([{ id_alumno: alumnoId, direccion: dir }]);
         } catch (error) {
           console.log(`No se pudo agregar dirección ${dir}:`, error.message);
         }
@@ -471,35 +545,52 @@ router.put('/:id', [
       id_representante 
     } = req.body;
 
-    const existingAlumnos = await executeQuery(
-      'SELECT id FROM alumno WHERE cedula = ? AND id != ?',
-      [cedula, id]
-    );
+    const { data: existingAlumnos, error: existingError } = await supabase
+      .from('alumno')
+      .select('id')
+      .eq('cedula', cedula)
+      .neq('id', id)
+      .limit(1);
 
-    if (existingAlumnos.length > 0) {
+    if (existingAlumnos && existingAlumnos.length > 0) {
       return res.status(400).json({ error: 'Ya existe otro alumno con esta cédula' });
     }
 
-    try {
-      await executeQuery(
-        'UPDATE alumno SET cedula = ?, nombre = ?, fecha_nacimiento = ?, id_categoria_edad = ?, id_cinta = ?, estado = ?, telefono = ?, email = ?, direccion = ? WHERE id = ?',
-        [cedula, nombre, fecha_nacimiento, id_categoria_edad, id_cinta, estado, telefono || null, email || null, direccion || null, id]
-      );
-    } catch (error) {
-      await executeQuery(
-        'UPDATE alumno SET cedula = ?, nombre = ?, fecha_nacimiento = ?, id_categoria_edad = ?, id_cinta = ?, estado = ? WHERE id = ?',
-        [cedula, nombre, fecha_nacimiento, id_categoria_edad, id_cinta, estado, id]
-      );
+    const updateData = {
+      cedula,
+      nombre,
+      fecha_nacimiento,
+      id_categoria_edad: id_categoria_edad || null,
+      id_cinta: id_cinta || null,
+      estado: estado !== undefined ? estado : true
+    };
+
+    // Agregar campos opcionales si existen
+    if (telefono !== undefined) updateData.telefono = telefono || null;
+    if (email !== undefined) updateData.email = email || null;
+    if (direccion !== undefined) updateData.direccion = direccion || null;
+
+    const { error: updateError } = await supabase
+      .from('alumno')
+      .update(updateData)
+      .eq('id', id);
+
+    if (updateError) {
+      throw updateError;
     }
 
     if (id_representante !== undefined) {
-      await executeQuery('DELETE FROM alumnorepresentante WHERE id_alumno = ?', [id]);
+      // Eliminar representantes existentes
+      await supabase
+        .from('alumnorepresentante')
+        .delete()
+        .eq('id_alumno', id);
       
+      // Agregar nuevo representante si se proporciona
       if (id_representante) {
-        await executeQuery(
-          'INSERT INTO alumnorepresentante (id_alumno, id_representante) VALUES (?, ?)',
-          [id, id_representante]
-        );
+        await supabase
+          .from('alumnorepresentante')
+          .insert([{ id_alumno: id, id_representante: id_representante }]);
       }
     }
 
@@ -524,34 +615,35 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
 
     // Obtener información del alumno antes de eliminarlo
-    const alumno = await executeQuery(
-      'SELECT id, nombre, cedula, usuario_id FROM alumno WHERE id = ?',
-      [id]
-    );
+    const { data: alumno, error: alumnoError } = await supabase
+      .from('alumno')
+      .select('id, nombre, cedula, usuario_id')
+      .eq('id', id)
+      .single();
 
-    if (alumno.length === 0) {
+    if (alumnoError || !alumno) {
       return res.status(404).json({ error: 'Alumno no encontrado' });
     }
 
     // Eliminar el usuario asociado si existe
-    if (alumno[0].usuario_id) {
-      await executeQuery(
-        'DELETE FROM usuario WHERE id = ?',
-        [alumno[0].usuario_id]
-      );
+    if (alumno.usuario_id) {
+      await supabase
+        .from('usuario')
+        .delete()
+        .eq('id', alumno.usuario_id);
     }
 
     // Marcar el alumno como eliminado
-    await executeQuery(
-      'UPDATE alumno SET estado = 0 WHERE id = ?',
-      [id]
-    );
+    await supabase
+      .from('alumno')
+      .update({ estado: false })
+      .eq('id', id);
 
     await registrarLog({
       usuario_id: req.user.id,
       accion: LogActions.ELIMINAR,
       modulo: LogModules.ALUMNOS,
-      descripcion: `Alumno eliminado - ID: ${id}, Nombre: ${alumno[0].nombre}, Cédula: ${alumno[0].cedula}`,
+      descripcion: `Alumno eliminado - ID: ${id}, Nombre: ${alumno.nombre}, Cédula: ${alumno.cedula}`,
       ip_address: req.ip || req.connection.remoteAddress,
       user_agent: req.get('User-Agent')
     });
@@ -661,10 +753,14 @@ router.patch('/:id/restaurar', async (req, res) => {
   try {
     const { id } = req.params;
 
-    await executeQuery(
-      'UPDATE alumno SET estado = 1 WHERE id = ?',
-      [id]
-    );
+    const { error: updateError } = await supabase
+      .from('alumno')
+      .update({ estado: true })
+      .eq('id', id);
+
+    if (updateError) {
+      throw updateError;
+    }
 
     res.json({ message: 'Alumno restaurado exitosamente' });
   } catch (error) {
@@ -678,45 +774,58 @@ router.delete('/:id/permanente', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verificar que el alumno existe y está eliminado (estado = 0)
-    const alumno = await executeQuery(
-      'SELECT id, nombre, cedula, estado, usuario_id FROM alumno WHERE id = ?',
-      [id]
-    );
+    // Verificar que el alumno existe y está eliminado (estado = false)
+    const { data: alumno, error: alumnoError } = await supabase
+      .from('alumno')
+      .select('id, nombre, cedula, estado, usuario_id')
+      .eq('id', id)
+      .single();
 
-    if (alumno.length === 0) {
+    if (alumnoError || !alumno) {
       return res.status(404).json({ error: 'Alumno no encontrado' });
     }
 
-    if (alumno[0].estado === 1) {
+    if (alumno.estado === true) {
       return res.status(400).json({ error: 'Solo se pueden eliminar permanentemente alumnos que ya estén eliminados' });
     }
 
     // Eliminar el usuario asociado si existe
-    if (alumno[0].usuario_id) {
-      await executeQuery(
-        'DELETE FROM usuario WHERE id = ?',
-        [alumno[0].usuario_id]
-      );
+    if (alumno.usuario_id) {
+      await supabase
+        .from('usuario')
+        .delete()
+        .eq('id', alumno.usuario_id);
     }
 
     // Eliminar relaciones con representantes
-    await executeQuery('DELETE FROM alumnorepresentante WHERE id_alumno = ?', [id]);
+    await supabase
+      .from('alumnorepresentante')
+      .delete()
+      .eq('id_alumno', id);
 
     // Eliminar relaciones con evaluaciones
-    await executeQuery('DELETE FROM alumnoevaluacion WHERE id_alumno = ?', [id]);
+    await supabase
+      .from('alumnoevaluacion')
+      .delete()
+      .eq('id_alumno', id);
 
     // Eliminar pagos del alumno
-    await executeQuery('DELETE FROM pagos WHERE id_alumno = ?', [id]);
+    await supabase
+      .from('pagos')
+      .delete()
+      .eq('id_alumno', id);
 
     // Eliminar el alumno permanentemente
-    await executeQuery('DELETE FROM alumno WHERE id = ?', [id]);
+    await supabase
+      .from('alumno')
+      .delete()
+      .eq('id', id);
 
     await registrarLog({
       usuario_id: req.user.id,
       accion: LogActions.ELIMINAR,
       modulo: LogModules.ALUMNOS,
-      descripcion: `Alumno eliminado PERMANENTEMENTE - ID: ${id}, Nombre: ${alumno[0].nombre}, Cédula: ${alumno[0].cedula}`,
+      descripcion: `Alumno eliminado PERMANENTEMENTE - ID: ${id}, Nombre: ${alumno.nombre}, Cédula: ${alumno.cedula}`,
       ip_address: req.ip || req.connection.remoteAddress,
       user_agent: req.get('User-Agent')
     });
@@ -731,11 +840,18 @@ router.delete('/:id/permanente', async (req, res) => {
 
 router.get('/senseis/disponibles', async (req, res) => {
   try {
-    const senseis = await executeQuery(
-      'SELECT id, nombre_completo, username FROM usuario WHERE rol = ? AND estado = 1 ORDER BY nombre_completo',
-      ['instructor']
-    );
-    res.json(senseis);
+    const { data: senseis, error: senseisError } = await supabase
+      .from('usuario')
+      .select('id, nombre_completo, username')
+      .eq('rol', 'instructor')
+      .eq('estado', 1)
+      .order('nombre_completo', { ascending: true });
+
+    if (senseisError) {
+      throw senseisError;
+    }
+
+    res.json(senseis || []);
   } catch (error) {
     console.error('Error obteniendo senseis:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -756,20 +872,26 @@ router.put('/:id/sensei', [
     const { sensei_id } = req.body;
 
     
-    const sensei = await executeQuery(
-      'SELECT id FROM usuario WHERE id = ? AND rol = ? AND estado = 1',
-      [sensei_id, 'instructor']
-    );
+    const { data: sensei, error: senseiError } = await supabase
+      .from('usuario')
+      .select('id')
+      .eq('id', sensei_id)
+      .eq('rol', 'instructor')
+      .eq('estado', 1)
+      .single();
 
-    if (sensei.length === 0) {
+    if (senseiError || !sensei) {
       return res.status(400).json({ error: 'Sensei no encontrado o no válido' });
     }
 
-    
-    await executeQuery(
-      'UPDATE alumno SET sensei_id = ? WHERE id = ?',
-      [sensei_id, id]
-    );
+    const { error: updateError } = await supabase
+      .from('alumno')
+      .update({ sensei_id: sensei_id })
+      .eq('id', id);
+
+    if (updateError) {
+      throw updateError;
+    }
 
     res.json({ message: 'Sensei actualizado exitosamente' });
   } catch (error) {
