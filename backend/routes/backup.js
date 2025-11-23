@@ -1,5 +1,4 @@
 import express from 'express';
-import { executeQuery } from '../config/database.js';
 import supabase from '../utils/supabaseClient.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { exec } from 'child_process';
@@ -39,8 +38,13 @@ router.get('/export/json', async (req, res) => {
 
     for (const tabla of tablas) {
       try {
-        const datos = await executeQuery(`SELECT * FROM ${tabla}`);
-        backup.datos[tabla] = datos;
+        const { data, error } = await supabase.from(tabla).select('*');
+        if (error) {
+          console.error(`Error exportando tabla ${tabla}:`, error);
+          backup.datos[tabla] = [];
+        } else {
+          backup.datos[tabla] = data || [];
+        }
       } catch (error) {
         console.error(`Error exportando tabla ${tabla}:`, error);
         backup.datos[tabla] = [];
@@ -82,38 +86,36 @@ SET time_zone = "+00:00";
 
 `;
 
+    // Nota: En Supabase no podemos obtener la estructura de la tabla directamente
+    // Solo exportamos los datos
     for (const tabla of tablas) {
       try {
-        // Obtener estructura de la tabla
-        const estructura = await executeQuery(`SHOW CREATE TABLE ${tabla}`);
-        if (estructura.length > 0) {
-          sqlContent += `-- Estructura de tabla ${tabla}
-DROP TABLE IF EXISTS \`${tabla}\`;
-${estructura[0]['Create Table']};
-
-`;
-
-          // Obtener datos de la tabla
-          const datos = await executeQuery(`SELECT * FROM ${tabla}`);
-          if (datos.length > 0) {
-            sqlContent += `-- Datos de tabla ${tabla}\n`;
-            
-            // Obtener nombres de columnas
-            const columnas = Object.keys(datos[0]);
-            const columnasStr = columnas.map(col => `\`${col}\``).join(', ');
-            
-            // Generar INSERT statements
-            for (const fila of datos) {
-              const valores = columnas.map(col => {
-                const valor = fila[col];
-                if (valor === null) return 'NULL';
-                if (typeof valor === 'string') return `'${valor.replace(/'/g, "''")}'`;
-                return valor;
-              });
-              sqlContent += `INSERT INTO \`${tabla}\` (${columnasStr}) VALUES (${valores.join(', ')});\n`;
-            }
-            sqlContent += '\n';
+        const { data: datos, error } = await supabase.from(tabla).select('*');
+        if (error) {
+          console.error(`Error exportando tabla ${tabla}:`, error);
+          sqlContent += `-- Error exportando tabla ${tabla}: ${error.message}\n\n`;
+          continue;
+        }
+        
+        if (datos && datos.length > 0) {
+          sqlContent += `-- Datos de tabla ${tabla}\n`;
+          
+          // Obtener nombres de columnas
+          const columnas = Object.keys(datos[0]);
+          const columnasStr = columnas.map(col => `\`${col}\``).join(', ');
+          
+          // Generar INSERT statements
+          for (const fila of datos) {
+            const valores = columnas.map(col => {
+              const valor = fila[col];
+              if (valor === null) return 'NULL';
+              if (typeof valor === 'string') return `'${valor.replace(/'/g, "''")}'`;
+              if (valor instanceof Date) return `'${valor.toISOString()}'`;
+              return valor;
+            });
+            sqlContent += `INSERT INTO \`${tabla}\` (${columnasStr}) VALUES (${valores.join(', ')});\n`;
           }
+          sqlContent += '\n';
         }
       } catch (error) {
         console.error(`Error exportando tabla ${tabla}:`, error);
@@ -149,21 +151,44 @@ router.post('/import/json', async (req, res) => {
       try {
         const registros = datos[tabla];
         if (Array.isArray(registros) && registros.length > 0) {
-          // Limpiar tabla existente
-          await executeQuery(`DELETE FROM ${tabla}`);
+          // Limpiar tabla existente (obtener todos los IDs y eliminarlos)
+          const { data: existingRecords, error: selectError } = await supabase
+            .from(tabla)
+            .select('id')
+            .limit(10000); // Límite razonable
           
-          // Insertar nuevos datos
-          for (const registro of registros) {
-            const columnas = Object.keys(registro);
-            const valores = Object.values(registro);
-            const placeholders = columnas.map(() => '?').join(', ');
-            
-            await executeQuery(
-              `INSERT INTO ${tabla} (${columnas.join(', ')}) VALUES (${placeholders})`,
-              valores
-            );
+          if (!selectError && existingRecords && existingRecords.length > 0) {
+            // Eliminar en lotes
+            const ids = existingRecords.map(r => r.id);
+            const batchSize = 100;
+            for (let i = 0; i < ids.length; i += batchSize) {
+              const batch = ids.slice(i, i + batchSize);
+              const { error: deleteError } = await supabase
+                .from(tabla)
+                .delete()
+                .in('id', batch);
+              
+              if (deleteError) {
+                console.error(`Error limpiando lote de tabla ${tabla}:`, deleteError);
+              }
+            }
           }
-          importados += registros.length;
+          
+          // Insertar nuevos datos en lotes
+          const batchSize = 100;
+          for (let i = 0; i < registros.length; i += batchSize) {
+            const batch = registros.slice(i, i + batchSize);
+            const { error: insertError } = await supabase
+              .from(tabla)
+              .insert(batch);
+            
+            if (insertError) {
+              console.error(`Error insertando lote en tabla ${tabla}:`, insertError);
+              errores.push({ tabla, error: insertError.message });
+            } else {
+              importados += batch.length;
+            }
+          }
         }
       } catch (error) {
         console.error(`Error importando tabla ${tabla}:`, error);
@@ -264,15 +289,25 @@ router.get('/stats', async (req, res) => {
 router.delete('/logs/limpiar', async (req, res) => {
   try {
     const { dias = 90 } = req.query;
+    
+    // Calcular fecha límite
+    const fechaLimite = new Date();
+    fechaLimite.setDate(fechaLimite.getDate() - parseInt(dias));
 
-    const result = await executeQuery(
-      'DELETE FROM log_actividades WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)',
-      [dias]
-    );
+    const { data, error } = await supabase
+      .from('log_actividades')
+      .delete()
+      .lt('created_at', fechaLimite.toISOString())
+      .select();
+
+    if (error) {
+      console.error('Error limpiando logs:', error);
+      return res.status(500).json({ error: 'Error limpiando logs' });
+    }
 
     res.json({ 
       message: `Logs antiguos eliminados exitosamente`, 
-      eliminados: result.affectedRows 
+      eliminados: data?.length || 0 
     });
   } catch (error) {
     console.error('Error limpiando logs:', error);
@@ -285,26 +320,51 @@ router.get('/verificar-integridad', async (req, res) => {
   try {
     const problemas = [];
 
-    // Verificar alumnos sin categoría de edad
-    const alumnosSinCategoria = await executeQuery(
-      'SELECT COUNT(*) as total FROM alumno WHERE id_categoria_edad IS NULL OR id_categoria_edad NOT IN (SELECT id FROM categorias_edad)'
-    );
-    if (alumnosSinCategoria[0].total > 0) {
-      problemas.push({
-        tipo: 'advertencia',
-        mensaje: `${alumnosSinCategoria[0].total} alumno(s) sin categoría de edad válida asignada`
-      });
-    }
+    // Obtener todas las categorías de edad válidas
+    const { data: categorias, error: catError } = await supabase
+      .from('categorias_edad')
+      .select('id');
+    
+    if (catError) {
+      console.error('Error obteniendo categorías:', catError);
+    } else {
+      const categoriaIds = categorias?.map(c => c.id) || [];
+      
+      // Verificar alumnos sin categoría de edad válida
+      const { data: alumnos, error: alumnosError } = await supabase
+        .from('alumno')
+        .select('id, id_categoria_edad');
+      
+      if (!alumnosError && alumnos) {
+        const alumnosSinCategoria = alumnos.filter(a => 
+          !a.id_categoria_edad || !categoriaIds.includes(a.id_categoria_edad)
+        );
+        
+        if (alumnosSinCategoria.length > 0) {
+          problemas.push({
+            tipo: 'advertencia',
+            mensaje: `${alumnosSinCategoria.length} alumno(s) sin categoría de edad válida asignada`
+          });
+        }
+      }
 
-    // Verificar horarios sin categoría de edad
-    const horariosSinCategoria = await executeQuery(
-      'SELECT COUNT(*) as total FROM horarios_clases WHERE id_categoria_edad IS NOT NULL AND id_categoria_edad NOT IN (SELECT id FROM categorias_edad)'
-    );
-    if (horariosSinCategoria[0].total > 0) {
-      problemas.push({
-        tipo: 'error',
-        mensaje: `${horariosSinCategoria[0].total} horario(s) con categoría de edad inválida`
-      });
+      // Verificar horarios sin categoría de edad válida
+      const { data: horarios, error: horariosError } = await supabase
+        .from('horarios_clases')
+        .select('id, id_categoria_edad');
+      
+      if (!horariosError && horarios) {
+        const horariosSinCategoria = horarios.filter(h => 
+          h.id_categoria_edad && !categoriaIds.includes(h.id_categoria_edad)
+        );
+        
+        if (horariosSinCategoria.length > 0) {
+          problemas.push({
+            tipo: 'error',
+            mensaje: `${horariosSinCategoria.length} horario(s) con categoría de edad inválida`
+          });
+        }
+      }
     }
 
     res.json({
@@ -321,9 +381,39 @@ router.get('/verificar-integridad', async (req, res) => {
 // Registrar fecha de último backup
 router.post('/registrar-backup', async (req, res) => {
   try {
-    await executeQuery(
-      "INSERT INTO configuracion (clave, valor, descripcion) VALUES ('ultimo_backup', NOW(), 'Fecha del último backup') ON DUPLICATE KEY UPDATE valor = NOW()"
-    );
+    const fechaBackup = new Date().toISOString();
+    
+    // Intentar actualizar primero
+    const { data: existing, error: selectError } = await supabase
+      .from('configuracion')
+      .select('id')
+      .eq('clave', 'ultimo_backup')
+      .single();
+    
+    if (existing) {
+      // Actualizar
+      const { error: updateError } = await supabase
+        .from('configuracion')
+        .update({ valor: fechaBackup })
+        .eq('clave', 'ultimo_backup');
+      
+      if (updateError) {
+        throw updateError;
+      }
+    } else {
+      // Insertar
+      const { error: insertError } = await supabase
+        .from('configuracion')
+        .insert({
+          clave: 'ultimo_backup',
+          valor: fechaBackup,
+          descripcion: 'Fecha del último backup'
+        });
+      
+      if (insertError) {
+        throw insertError;
+      }
+    }
 
     res.json({ message: 'Backup registrado exitosamente' });
   } catch (error) {
