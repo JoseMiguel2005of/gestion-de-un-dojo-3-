@@ -188,7 +188,7 @@ router.post('/reset', authenticateToken, async (req, res) => {
       'dojo_fondo_url': '',
       'tema_color_primario': '#0ea5e9',
       'tema_modo': 'light',
-      'tema_sidebar': 'current'
+      'tema_sidebar': 'elegant'
     };
 
     for (const [clave, valor] of Object.entries(defaults)) {

@@ -83,23 +83,26 @@ export default function Configuracion() {
   const loadConfiguration = async () => {
     try {
       const data = await apiClient.getConfiguracion();
-      // Si no hay tema_sidebar, usar 'elegant' como predeterminado
+      // Si no hay tema_sidebar o es null/undefined, usar 'elegant' como predeterminado
       // Si es 'current', mantenerlo para que el usuario pueda seleccionarlo
-      const temaSidebar = data.tema_sidebar || 'elegant';
+      // Pero si es null/undefined/vacío, usar 'elegant' como principal
+      let temaSidebar: SidebarTheme = data.tema_sidebar || 'elegant';
+      
+      // Si el tema es null, undefined, o una cadena vacía, usar 'elegant'
+      if (!temaSidebar || temaSidebar === '' || temaSidebar === null) {
+        temaSidebar = 'elegant';
+      }
       
       setConfig(prev => ({ 
         ...prev, 
         ...data, 
-        tema_sidebar: temaSidebar as SidebarTheme
+        tema_sidebar: temaSidebar
       }));
       
-      // Siempre actualizar localStorage y disparar evento para sincronizar con AppSidebar
-      // Esto asegura que si la BD tiene 'current', se muestre SidebarCurrent
-      const currentLocalTheme = localStorage.getItem('sidebar_theme');
-      if (currentLocalTheme !== temaSidebar) {
-        localStorage.setItem('sidebar_theme', temaSidebar);
-        window.dispatchEvent(new CustomEvent('sidebar-theme-change', { detail: temaSidebar }));
-      }
+      // SIEMPRE actualizar localStorage y disparar evento para sincronizar con AppSidebar
+      // Esto asegura que el sidebar se actualice correctamente según lo que está en la BD
+      localStorage.setItem('sidebar_theme', temaSidebar);
+      window.dispatchEvent(new CustomEvent('sidebar-theme-change', { detail: temaSidebar }));
       
       // Guardar el tema inicial para comparar después
       previousThemeRef.current = data.tema_modo || 'light';

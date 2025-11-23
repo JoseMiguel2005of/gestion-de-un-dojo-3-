@@ -19,20 +19,23 @@ export function AppSidebar() {
   }, []);
 
   useEffect(() => {
-    // Cargar tema desde localStorage
+    // Cargar tema desde localStorage al inicio
     const savedTheme = localStorage.getItem('sidebar_theme') as SidebarTheme;
-    if (savedTheme) {
+    if (savedTheme && ['v1', 'v2', 'classic', 'elegant', 'current'].includes(savedTheme)) {
       setSidebarTheme(savedTheme);
     } else {
-      // Si no hay tema guardado, usar 'elegant' como predeterminado
+      // Si no hay tema guardado o es inválido, usar 'elegant' como predeterminado
       setSidebarTheme('elegant');
       localStorage.setItem('sidebar_theme', 'elegant');
     }
 
-    // Escuchar cambios en el tema
+    // Escuchar cambios en el tema (disparados desde Configuracion.tsx cuando se carga la BD)
     const handleThemeChange = (e: CustomEvent<SidebarTheme>) => {
-      setSidebarTheme(e.detail);
-      localStorage.setItem('sidebar_theme', e.detail);
+      const newTheme = e.detail;
+      if (newTheme && ['v1', 'v2', 'classic', 'elegant', 'current'].includes(newTheme)) {
+        setSidebarTheme(newTheme);
+        localStorage.setItem('sidebar_theme', newTheme);
+      }
     };
 
     window.addEventListener('sidebar-theme-change' as any, handleThemeChange);
