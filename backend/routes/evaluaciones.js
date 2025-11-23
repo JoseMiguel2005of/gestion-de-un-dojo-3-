@@ -1,5 +1,5 @@
 import express from 'express';
-import { executeQuery } from '../config/database.js';
+import supabase from '../utils/supabaseClient.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { body, validationResult } from 'express-validator';
 import { registrarLog, LogActions, LogModules } from '../utils/logger.js';
@@ -9,6 +9,19 @@ const router = express.Router();
 // Aplicar autenticación a todas las rutas
 router.use(authenticateToken);
 
+// Función auxiliar para determinar categoría de examen
+const determinarCategoriaExamen = (nombre) => {
+  if (!nombre) return nombre;
+  if (nombre.includes('Blanco → Amarillo') || nombre.includes('Blanco')) return 'Blanco → Amarillo';
+  if (nombre.includes('Amarillo → Naranja') || nombre.includes('Amarillo')) return 'Amarillo → Naranja';
+  if (nombre.includes('Naranja → Verde') || nombre.includes('Naranja')) return 'Naranja → Verde';
+  if (nombre.includes('Verde → Azul') || nombre.includes('Verde')) return 'Verde → Azul';
+  if (nombre.includes('Azul → Marrón') || nombre.includes('Azul')) return 'Azul → Marrón';
+  if (nombre.includes('Marrón → Negro') || nombre.includes('Marrón')) return 'Marrón → Negro';
+  if (nombre.includes('Dan Avanzado') || nombre.includes('Negro')) return 'Negro → Dan Avanzado';
+  return nombre;
+};
+
 // Obtener todas las evaluaciones
 router.get('/', async (req, res) => {
   try {
@@ -16,74 +29,115 @@ router.get('/', async (req, res) => {
     const userRole = req.user?.rol || 'usuario';
     const userId = req.user?.id;
     
+    let evaluacionesIds = [];
+
     if (userRole === 'usuario' && userId) {
       // Usuarios normales ven evaluaciones donde están inscritos como alumnos
-      const evaluaciones = await executeQuery(`
-        SELECT DISTINCT e.*, 
-               GROUP_CONCAT(DISTINCT CONCAT(ce.nombre, ' - ', cin.nombre) SEPARATOR ', ') as niveles,
-               CASE 
-                 WHEN e.nombre LIKE '%Blanco → Amarillo%' THEN 'Blanco → Amarillo'
-                 WHEN e.nombre LIKE '%Amarillo → Naranja%' THEN 'Amarillo → Naranja'
-                 WHEN e.nombre LIKE '%Naranja → Verde%' THEN 'Naranja → Verde'
-                 WHEN e.nombre LIKE '%Verde → Azul%' THEN 'Verde → Azul'
-                 WHEN e.nombre LIKE '%Azul → Marrón%' THEN 'Azul → Marrón'
-                 WHEN e.nombre LIKE '%Marrón → Negro%' THEN 'Marrón → Negro'
-                 WHEN e.nombre LIKE '%Dan Avanzado%' THEN 'Negro → Dan Avanzado'
-                 WHEN e.nombre LIKE '%Blanco%' THEN 'Blanco → Amarillo'
-                 WHEN e.nombre LIKE '%Amarillo%' THEN 'Amarillo → Naranja'
-                 WHEN e.nombre LIKE '%Naranja%' THEN 'Naranja → Verde'
-                 WHEN e.nombre LIKE '%Verde%' THEN 'Verde → Azul'
-                 WHEN e.nombre LIKE '%Azul%' THEN 'Azul → Marrón'
-                 WHEN e.nombre LIKE '%Marrón%' THEN 'Marrón → Negro'
-                 WHEN e.nombre LIKE '%Negro%' THEN 'Negro → Dan Avanzado'
-                 ELSE e.nombre
-               END as categoria_examen
-        FROM evaluacion e
-        INNER JOIN alumnoevaluacion ae ON e.id = ae.id_evaluacion
-        INNER JOIN alumno a ON ae.id_alumno = a.id
-        LEFT JOIN categorias_edad ce ON a.id_categoria_edad = ce.id
-        LEFT JOIN cintas cin ON a.id_cinta = cin.id
-        WHERE a.usuario_id = ? AND a.estado = 1
-        GROUP BY e.id
-        ORDER BY e.fecha DESC
-      `, [userId]);
-      
-      res.json(evaluaciones);
-    } else {
-      // Admin, instructor, etc. pueden ver todas las evaluaciones
-      const evaluaciones = await executeQuery(`
-        SELECT e.*, 
-               GROUP_CONCAT(DISTINCT CONCAT(ce.nombre, ' - ', cin.nombre) SEPARATOR ', ') as niveles,
-               CASE 
-                 WHEN e.nombre LIKE '%Blanco → Amarillo%' THEN 'Blanco → Amarillo'
-                 WHEN e.nombre LIKE '%Amarillo → Naranja%' THEN 'Amarillo → Naranja'
-                 WHEN e.nombre LIKE '%Naranja → Verde%' THEN 'Naranja → Verde'
-                 WHEN e.nombre LIKE '%Verde → Azul%' THEN 'Verde → Azul'
-                 WHEN e.nombre LIKE '%Azul → Marrón%' THEN 'Azul → Marrón'
-                 WHEN e.nombre LIKE '%Marrón → Negro%' THEN 'Marrón → Negro'
-                 WHEN e.nombre LIKE '%Dan Avanzado%' THEN 'Negro → Dan Avanzado'
-                 WHEN e.nombre LIKE '%Blanco%' THEN 'Blanco → Amarillo'
-                 WHEN e.nombre LIKE '%Amarillo%' THEN 'Amarillo → Naranja'
-                 WHEN e.nombre LIKE '%Naranja%' THEN 'Naranja → Verde'
-                 WHEN e.nombre LIKE '%Verde%' THEN 'Verde → Azul'
-                 WHEN e.nombre LIKE '%Azul%' THEN 'Azul → Marrón'
-                 WHEN e.nombre LIKE '%Marrón%' THEN 'Marrón → Negro'
-                 WHEN e.nombre LIKE '%Negro%' THEN 'Negro → Dan Avanzado'
-                 ELSE e.nombre
-               END as categoria_examen
-        FROM evaluacion e
-        LEFT JOIN alumnoevaluacion ae ON e.id = ae.id_evaluacion
-        LEFT JOIN alumno a ON ae.id_alumno = a.id
-        LEFT JOIN categorias_edad ce ON a.id_categoria_edad = ce.id
-        LEFT JOIN cintas cin ON a.id_cinta = cin.id
-        GROUP BY e.id
-        ORDER BY e.fecha DESC
-      `);
-      res.json(evaluaciones);
+      // Primero obtener los IDs de alumnos del usuario
+      const { data: alumnos, error: alumnosError } = await supabase
+        .from('alumno')
+        .select('id')
+        .eq('usuario_id', userId)
+        .eq('estado', true);
+
+      if (alumnosError) {
+        console.error('Error obteniendo alumnos del usuario:', alumnosError);
+        return res.status(500).json({ error: 'Error interno del servidor', details: alumnosError.message });
+      }
+
+      if (!alumnos || alumnos.length === 0) {
+        return res.json([]);
+      }
+
+      const alumnosIds = alumnos.map(a => a.id);
+
+      // Obtener evaluaciones asociadas a estos alumnos
+      const { data: evaluacionesRel, error: relError } = await supabase
+        .from('alumnoevaluacion')
+        .select('id_evaluacion')
+        .in('id_alumno', alumnosIds);
+
+      if (relError) {
+        console.error('Error obteniendo relaciones de evaluaciones:', relError);
+        return res.status(500).json({ error: 'Error interno del servidor', details: relError.message });
+      }
+
+      if (!evaluacionesRel || evaluacionesRel.length === 0) {
+        return res.json([]);
+      }
+
+      evaluacionesIds = [...new Set(evaluacionesRel.map(r => r.id_evaluacion))];
     }
+
+    // Obtener evaluaciones
+    let evaluacionesQuery = supabase
+      .from('evaluacion')
+      .select('*')
+      .order('fecha', { ascending: false });
+
+    if (userRole === 'usuario' && userId && evaluacionesIds.length > 0) {
+      evaluacionesQuery = evaluacionesQuery.in('id', evaluacionesIds);
+    } else if (userRole === 'usuario' && userId && evaluacionesIds.length === 0) {
+      return res.json([]);
+    }
+
+    const { data: evaluaciones, error: evalError } = await evaluacionesQuery;
+
+    if (evalError) {
+      console.error('Error obteniendo evaluaciones:', evalError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: evalError.message });
+    }
+
+    if (!evaluaciones || evaluaciones.length === 0) {
+      return res.json([]);
+    }
+
+    // Obtener alumnos asociados a cada evaluación para construir niveles
+    const evaluacionesIdsParaNiveles = evaluaciones.map(e => e.id);
+    const { data: alumnosEval, error: alumnosEvalError } = await supabase
+      .from('alumnoevaluacion')
+      .select(`
+        id_evaluacion,
+        id_alumno,
+        alumno:id_alumno(
+          id_categoria_edad,
+          id_cinta,
+          categorias_edad:id_categoria_edad(nombre),
+          cintas:id_cinta(nombre)
+        )
+      `)
+      .in('id_evaluacion', evaluacionesIdsParaNiveles);
+
+    if (alumnosEvalError) {
+      console.error('Error obteniendo alumnos de evaluaciones:', alumnosEvalError);
+    }
+
+    // Combinar datos
+    const evaluacionesConNiveles = evaluaciones.map(evaluacion => {
+      const alumnos = alumnosEval?.filter(ae => ae.id_evaluacion === evaluacion.id) || [];
+      const niveles = alumnos
+        .map(ae => {
+          const alumno = Array.isArray(ae.alumno) ? ae.alumno[0] : ae.alumno;
+          const categoria = Array.isArray(alumno?.categorias_edad) ? alumno.categorias_edad[0] : alumno?.categorias_edad;
+          const cinta = Array.isArray(alumno?.cintas) ? alumno.cintas[0] : alumno?.cintas;
+          if (categoria?.nombre && cinta?.nombre) {
+            return `${categoria.nombre} - ${cinta.nombre}`;
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      return {
+        ...evaluacion,
+        niveles: niveles.join(', ') || null,
+        categoria_examen: determinarCategoriaExamen(evaluacion.nombre)
+      };
+    });
+
+    res.json(evaluacionesConNiveles);
   } catch (error) {
     console.error('Error obteniendo evaluaciones:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 

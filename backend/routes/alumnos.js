@@ -565,38 +565,92 @@ router.delete('/:id', async (req, res) => {
 
 router.get('/eliminados/listar', async (req, res) => {
   try {
-    const query = `
-      SELECT 
-        a.id, a.cedula, a.nombre, a.fecha_nacimiento, a.estado,
-        a.id_categoria_edad, a.id_cinta, a.sensei_id,
-        ce.nombre as categoria_edad_nombre,
-        c.nombre as cinta_nombre, c.color_hex as cinta_color,
-        u.nombre_completo as instructor_nombre,
-        GROUP_CONCAT(DISTINCT ar.id_representante) as representantes_ids,
-        GROUP_CONCAT(DISTINCT r.nombre) as representantes_nombres
-      FROM alumno a
-      LEFT JOIN categorias_edad ce ON a.id_categoria_edad = ce.id
-      LEFT JOIN cintas c ON a.id_cinta = c.id
-      LEFT JOIN usuario u ON a.sensei_id = u.id
-      LEFT JOIN alumnorepresentante ar ON a.id = ar.id_alumno
-      LEFT JOIN representante r ON ar.id_representante = r.id
-      WHERE a.estado = 0
-      GROUP BY a.id, a.cedula, a.nombre, a.fecha_nacimiento, a.estado,
-               a.id_categoria_edad, a.id_cinta, a.sensei_id,
-               ce.nombre, c.nombre, c.color_hex, u.nombre_completo
-      ORDER BY a.nombre
-    `;
-    
-    const alumnos = await executeQuery(query);
-    res.json(alumnos);
+    // Obtener alumnos eliminados con sus relaciones básicas
+    const { data: alumnos, error: alumnosError } = await supabase
+      .from('alumno')
+      .select(`
+        *,
+        categorias_edad:id_categoria_edad(nombre),
+        cintas:id_cinta(nombre, color_hex),
+        usuario:sensei_id(nombre_completo)
+      `)
+      .eq('estado', false)
+      .order('nombre', { ascending: true });
+
+    if (alumnosError) {
+      console.error('Error obteniendo alumnos eliminados:', alumnosError);
+      return res.status(500).json({ 
+        error: 'Error interno del servidor', 
+        message: alumnosError.message,
+        code: alumnosError.code
+      });
+    }
+
+    if (!alumnos || alumnos.length === 0) {
+      return res.json([]);
+    }
+
+    // Obtener representantes para todos los alumnos
+    const alumnosIds = alumnos.map(a => a.id);
+    const { data: representantesData, error: repError } = await supabase
+      .from('alumnorepresentante')
+      .select(`
+        id_alumno,
+        id_representante,
+        representante:id_representante(id, nombre)
+      `)
+      .in('id_alumno', alumnosIds);
+
+    if (repError) {
+      console.error('Error obteniendo representantes:', repError);
+    }
+
+    // Combinar datos
+    const alumnosConRepresentantes = alumnos.map(alumno => {
+      const representantes = representantesData?.filter(r => r.id_alumno === alumno.id) || [];
+      const representantesIds = representantes.map(r => r.id_representante).join(',');
+      const representantesNombres = representantes
+        .map(r => {
+          const rep = Array.isArray(r.representante) ? r.representante[0] : r.representante;
+          return rep?.nombre;
+        })
+        .filter(Boolean)
+        .join(', ');
+
+      const categoriaEdad = Array.isArray(alumno.categorias_edad) 
+        ? alumno.categorias_edad[0] 
+        : alumno.categorias_edad;
+      const cinta = Array.isArray(alumno.cintas) 
+        ? alumno.cintas[0] 
+        : alumno.cintas;
+      const instructor = Array.isArray(alumno.usuario) 
+        ? alumno.usuario[0] 
+        : alumno.usuario;
+
+      return {
+        id: alumno.id,
+        cedula: alumno.cedula,
+        nombre: alumno.nombre,
+        fecha_nacimiento: alumno.fecha_nacimiento,
+        estado: alumno.estado,
+        id_categoria_edad: alumno.id_categoria_edad,
+        id_cinta: alumno.id_cinta,
+        sensei_id: alumno.sensei_id,
+        categoria_edad_nombre: categoriaEdad?.nombre || null,
+        cinta_nombre: cinta?.nombre || null,
+        cinta_color: cinta?.color_hex || null,
+        instructor_nombre: instructor?.nombre_completo || null,
+        representantes_ids: representantesIds || null,
+        representantes_nombres: representantesNombres || null
+      };
+    });
+
+    res.json(alumnosConRepresentantes);
   } catch (error) {
     console.error('Error obteniendo alumnos eliminados:', error);
     res.status(500).json({ 
       error: 'Error interno del servidor', 
       message: error.message,
-      sql: error.sql,
-      sqlMessage: error.sqlMessage,
-      errno: error.errno,
       code: error.code
     });
   }

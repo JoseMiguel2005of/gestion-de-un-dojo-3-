@@ -19,6 +19,7 @@ GRANT ALL ON TABLE dias_festivos TO service_role;
 GRANT ALL ON TABLE password_reset_tokens TO service_role;
 GRANT ALL ON TABLE account_lock TO service_role;
 GRANT ALL ON TABLE log_actividades TO service_role;
+GRANT ALL ON TABLE categorias_old_backup TO service_role;
 
 -- También otorgar permisos al rol anon (por si acaso)
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE configuracion TO anon;
@@ -37,6 +38,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE dias_festivos TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE password_reset_tokens TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE account_lock TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE log_actividades TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE categorias_old_backup TO anon;
 
 -- Verificar que los permisos se otorgaron correctamente
 SELECT 

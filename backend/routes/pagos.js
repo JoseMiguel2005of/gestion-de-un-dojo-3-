@@ -1,5 +1,5 @@
 import express from 'express';
-import { executeQuery } from '../config/database.js';
+import supabase from '../utils/supabaseClient.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { body, validationResult } from 'express-validator';
 
@@ -10,11 +10,22 @@ router.use(authenticateToken);
 // Obtener configuración de pagos
 router.get('/config', async (req, res) => {
   try {
-    const config = await executeQuery('SELECT * FROM config_pagos WHERE id = 1');
-    res.json(config[0] || {});
+    const { data: config, error } = await supabase
+      .from('config_pagos')
+      .select('*')
+      .eq('id', 1)
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      console.error('Error obteniendo configuración de pagos:', error);
+      return res.status(500).json({ error: 'Error interno del servidor', details: error.message });
+    }
+
+    res.json(config || {});
   } catch (error) {
     console.error('Error obteniendo configuración de pagos:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
@@ -558,43 +569,62 @@ router.get('/', async (req, res) => {
     const userRole = req.user?.rol || 'usuario';
     const userId = req.user?.id;
     
-    // Consulta simplificada que no depende de campos que pueden no existir
-    let query = `
-      SELECT 
-        p.*,
-        a.nombre as alumno_nombre,
-        u.nombre_completo as registrado_por_nombre 
-      FROM pagos p 
-      LEFT JOIN alumno a ON p.id_alumno = a.id 
-      LEFT JOIN usuario u ON p.registrado_por = u.id 
-      WHERE 1=1
-    `;
-    const params = [];
+    // Obtener pagos con relaciones
+    let pagosQuery = supabase
+      .from('pagos')
+      .select(`
+        *,
+        alumno:id_alumno(nombre, usuario_id),
+        usuario:registrado_por(nombre_completo)
+      `)
+      .order('fecha_pago', { ascending: false })
+      .limit(parseInt(limit));
 
-    // Si es usuario normal, solo mostrar sus pagos
-    if (userRole === 'usuario' && userId) {
-      query += ' AND a.usuario_id = ?';
-      params.push(userId);
-    }
-
+    // Aplicar filtros
     if (mes) {
-      query += ' AND p.mes = ?';
-      params.push(mes);
+      pagosQuery = pagosQuery.eq('mes', parseInt(mes));
     }
     if (anio) {
-      query += ' AND p.anio = ?';
-      params.push(anio);
+      pagosQuery = pagosQuery.eq('anio', parseInt(anio));
     }
 
-    query += ' ORDER BY p.fecha_pago DESC LIMIT ?';
-    params.push(parseInt(limit));
+    const { data: pagos, error: pagosError } = await pagosQuery;
 
-    const pagos = await executeQuery(query, params);
-    res.json(pagos);
+    if (pagosError) {
+      console.error('Error obteniendo pagos:', pagosError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: pagosError.message });
+    }
+
+    if (!pagos || pagos.length === 0) {
+      return res.json([]);
+    }
+
+    // Filtrar por usuario si es necesario y combinar datos
+    let pagosFiltrados = pagos;
+    if (userRole === 'usuario' && userId) {
+      pagosFiltrados = pagos.filter(p => {
+        const alumno = Array.isArray(p.alumno) ? p.alumno[0] : p.alumno;
+        return alumno?.usuario_id === userId;
+      });
+    }
+
+    // Formatear respuesta
+    const pagosFormateados = pagosFiltrados.map(pago => {
+      const alumno = Array.isArray(pago.alumno) ? pago.alumno[0] : pago.alumno;
+      const usuario = Array.isArray(pago.usuario) ? pago.usuario[0] : pago.usuario;
+
+      return {
+        ...pago,
+        alumno_nombre: alumno?.nombre || null,
+        registrado_por_nombre: usuario?.nombre_completo || null
+      };
+    });
+
+    res.json(pagosFormateados);
   } catch (error) {
     console.error('Error obteniendo pagos:', error);
     console.error('Detalles del error:', error.message);
-    res.status(500).json({ error: 'Error interno del servidor: ' + error.message });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
