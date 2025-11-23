@@ -85,12 +85,12 @@ export default function Configuracion() {
       const data = await apiClient.getConfiguracion();
       // Si no hay tema_sidebar o es null/undefined, usar 'elegant' como predeterminado
       // Si es 'current', mantenerlo para que el usuario pueda seleccionarlo
-      // Pero si es null/undefined/vacío, usar 'elegant' como principal
-      let temaSidebar: SidebarTheme = data.tema_sidebar || 'elegant';
+      // Validar que el tema sea uno de los valores válidos
+      const temasValidos: SidebarTheme[] = ['v1', 'v2', 'classic', 'elegant', 'current'];
+      let temaSidebar: SidebarTheme = 'elegant';
       
-      // Si el tema es null, undefined, o una cadena vacía, usar 'elegant'
-      if (!temaSidebar || temaSidebar === '' || temaSidebar === null) {
-        temaSidebar = 'elegant';
+      if (data.tema_sidebar && temasValidos.includes(data.tema_sidebar as SidebarTheme)) {
+        temaSidebar = data.tema_sidebar as SidebarTheme;
       }
       
       setConfig(prev => ({ 
