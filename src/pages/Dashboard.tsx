@@ -147,9 +147,13 @@ export default function Dashboard() {
                 </DialogDescription>
               </DialogHeader>
               <InscripcionForm
-                onSuccess={() => {
+                onSuccess={async () => {
                   setDialogInscripcion(false);
-                  window.location.reload();
+                  // Actualizar datos sin recargar la página para mantener la sesión
+                  await fetchAlumnos();
+                  if (hasAdvancedAccess) {
+                    await fetchStats();
+                  }
                 }}
               />
             </DialogContent>
