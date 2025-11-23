@@ -1,10 +1,21 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
-import { executeQuery } from '../config/database.js';
+import supabase from '../utils/supabaseClient.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 router.use(authenticateToken);
+
+// Orden de días de la semana
+const ordenDias = {
+  'Lunes': 1,
+  'Martes': 2,
+  'Miércoles': 3,
+  'Jueves': 4,
+  'Viernes': 5,
+  'Sábado': 6,
+  'Domingo': 7
+};
 
 // Obtener horarios (filtrados por categoría del usuario si es usuario normal)
 router.get('/', async (req, res) => {
@@ -12,33 +23,140 @@ router.get('/', async (req, res) => {
     const userId = req.user.id;
     const userRole = req.user.rol;
     
-    let query = `
-      SELECT h.*, ce.nombre as categoria_edad_nombre, u.nombre_completo as instructor
-      FROM horarios_clases h 
-      LEFT JOIN categorias_edad ce ON h.id_categoria_edad = ce.id 
-      LEFT JOIN usuario u ON h.instructor = u.nombre_completo
-    `;
-    
+    // Obtener horarios con relaciones
+    let horariosQuery = supabase
+      .from('horarios_clases')
+      .select(`
+        *,
+        categorias_edad:id_categoria_edad(nombre)
+      `);
+
     // Si es un usuario normal (no admin/sensei), filtrar por su categoría
     if (userRole === 'usuario') {
-      query += `
-        WHERE h.id_categoria_edad IN (
-          SELECT a.id_categoria_edad 
-          FROM alumno a 
-          WHERE a.usuario_id = ? AND a.estado = 1
-        ) OR h.id_categoria_edad IS NULL
-      `;
+      // Primero obtener las categorías de edad de los alumnos del usuario
+      const { data: alumnos, error: alumnosError } = await supabase
+        .from('alumno')
+        .select('id_categoria_edad')
+        .eq('usuario_id', userId)
+        .eq('estado', true);
+
+      if (alumnosError) {
+        console.error('Error obteniendo alumnos del usuario:', alumnosError);
+        return res.status(500).json({ error: 'Error interno del servidor', details: alumnosError.message });
+      }
+
+      const categoriasIds = [...new Set(alumnos.map(a => a.id_categoria_edad).filter(Boolean))];
+
+      if (categoriasIds.length > 0) {
+        // Obtener horarios que coincidan con las categorías del usuario o que no tengan categoría
+        const { data: horariosConCategoria, error: error1 } = await supabase
+          .from('horarios_clases')
+          .select(`
+            *,
+            categorias_edad:id_categoria_edad(nombre)
+          `)
+          .in('id_categoria_edad', categoriasIds);
+
+        const { data: horariosSinCategoria, error: error2 } = await supabase
+          .from('horarios_clases')
+          .select(`
+            *,
+            categorias_edad:id_categoria_edad(nombre)
+          `)
+          .is('id_categoria_edad', null);
+
+        if (error1 || error2) {
+          console.error('Error obteniendo horarios:', error1 || error2);
+          return res.status(500).json({ error: 'Error interno del servidor', details: (error1 || error2).message });
+        }
+
+        const horarios = [...(horariosConCategoria || []), ...(horariosSinCategoria || [])];
+        
+        // Formatear y ordenar
+        const horariosFormateados = horarios.map(horario => {
+          const categoria = Array.isArray(horario.categorias_edad) 
+            ? horario.categorias_edad[0] 
+            : horario.categorias_edad;
+
+          return {
+            ...horario,
+            categoria_edad_nombre: categoria?.nombre || null,
+            instructor: horario.instructor || null
+          };
+        });
+
+        // Ordenar por día de la semana y hora
+        horariosFormateados.sort((a, b) => {
+          const ordenA = ordenDias[a.dia_semana] || 99;
+          const ordenB = ordenDias[b.dia_semana] || 99;
+          if (ordenA !== ordenB) {
+            return ordenA - ordenB;
+          }
+          return (a.hora_inicio || '').localeCompare(b.hora_inicio || '');
+        });
+
+        return res.json(horariosFormateados);
+      } else {
+        // Si no tiene alumnos, solo mostrar horarios sin categoría
+        horariosQuery = horariosQuery.is('id_categoria_edad', null);
+      }
     }
+
+    const { data: horarios, error: horariosError } = await horariosQuery;
+
+    if (horariosError) {
+      console.error('Error obteniendo horarios:', horariosError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: horariosError.message });
+    }
+
+    if (!horarios || horarios.length === 0) {
+      return res.json([]);
+    }
+
+    // Obtener instructores (si el campo instructor es un nombre, buscar el usuario)
+    const instructoresNombres = [...new Set(horarios.map(h => h.instructor).filter(Boolean))];
+    let instructoresMap = {};
     
-    query += ` ORDER BY FIELD(h.dia_semana, 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'), h.hora_inicio`;
-    
-    const params = userRole === 'usuario' ? [userId] : [];
-    const horarios = await executeQuery(query, params);
-    
-    res.json(horarios);
+    if (instructoresNombres.length > 0) {
+      const { data: usuarios, error: usuariosError } = await supabase
+        .from('usuario')
+        .select('id, nombre_completo')
+        .in('nombre_completo', instructoresNombres);
+
+      if (!usuariosError && usuarios) {
+        usuarios.forEach(u => {
+          instructoresMap[u.nombre_completo] = u.nombre_completo;
+        });
+      }
+    }
+
+    // Formatear respuesta y ordenar
+    const horariosFormateados = horarios.map(horario => {
+      const categoria = Array.isArray(horario.categorias_edad) 
+        ? horario.categorias_edad[0] 
+        : horario.categorias_edad;
+
+      return {
+        ...horario,
+        categoria_edad_nombre: categoria?.nombre || null,
+        instructor: horario.instructor || null
+      };
+    });
+
+    // Ordenar por día de la semana y hora
+    horariosFormateados.sort((a, b) => {
+      const ordenA = ordenDias[a.dia_semana] || 99;
+      const ordenB = ordenDias[b.dia_semana] || 99;
+      if (ordenA !== ordenB) {
+        return ordenA - ordenB;
+      }
+      return (a.hora_inicio || '').localeCompare(b.hora_inicio || '');
+    });
+
+    res.json(horariosFormateados);
   } catch (error) {
     console.error('Error obteniendo horarios:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
@@ -50,22 +168,40 @@ router.post('/', async (req, res) => {
     // Obtener el nombre del instructor si se proporciona instructor_id
     let instructor = null;
     if (instructor_id) {
-      const instructorData = await executeQuery(
-        'SELECT nombre_completo FROM usuario WHERE id = ?',
-        [instructor_id]
-      );
-      instructor = instructorData.length > 0 ? instructorData[0].nombre_completo : null;
+      const { data: instructorData, error: instructorError } = await supabase
+        .from('usuario')
+        .select('nombre_completo')
+        .eq('id', instructor_id)
+        .limit(1)
+        .single();
+
+      if (!instructorError && instructorData) {
+        instructor = instructorData.nombre_completo;
+      }
     }
 
-    const result = await executeQuery(
-      'INSERT INTO horarios_clases (dia_semana, hora_inicio, hora_fin, id_categoria_edad, capacidad_maxima, instructor) VALUES (?, ?, ?, ?, ?, ?)',
-      [dia_semana, hora_inicio, hora_fin, id_categoria_edad, capacidad_maxima, instructor]
-    );
+    const { data: newHorario, error: insertError } = await supabase
+      .from('horarios_clases')
+      .insert({
+        dia_semana,
+        hora_inicio,
+        hora_fin,
+        id_categoria_edad: id_categoria_edad || null,
+        capacidad_maxima: capacidad_maxima || null,
+        instructor: instructor || null
+      })
+      .select('id')
+      .single();
 
-    res.status(201).json({ id: result.insertId, message: 'Horario creado exitosamente' });
+    if (insertError) {
+      console.error('Error creando horario:', insertError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: insertError.message });
+    }
+
+    res.status(201).json({ id: newHorario.id, message: 'Horario creado exitosamente' });
   } catch (error) {
     console.error('Error creando horario:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
@@ -78,22 +214,45 @@ router.put('/:id', async (req, res) => {
     // Obtener el nombre del instructor si se proporciona instructor_id
     let instructor = null;
     if (instructor_id) {
-      const instructorData = await executeQuery(
-        'SELECT nombre_completo FROM usuario WHERE id = ?',
-        [instructor_id]
-      );
-      instructor = instructorData.length > 0 ? instructorData[0].nombre_completo : null;
+      const { data: instructorData, error: instructorError } = await supabase
+        .from('usuario')
+        .select('nombre_completo')
+        .eq('id', instructor_id)
+        .limit(1)
+        .single();
+
+      if (!instructorError && instructorData) {
+        instructor = instructorData.nombre_completo;
+      }
     }
 
-    await executeQuery(
-      'UPDATE horarios_clases SET dia_semana = ?, hora_inicio = ?, hora_fin = ?, id_categoria_edad = ?, capacidad_maxima = ?, instructor = ?, activo = ? WHERE id = ?',
-      [dia_semana, hora_inicio, hora_fin, id_categoria_edad, capacidad_maxima, instructor, activo, id]
-    );
+    const updateData = {
+      dia_semana,
+      hora_inicio,
+      hora_fin,
+      id_categoria_edad: id_categoria_edad || null,
+      capacidad_maxima: capacidad_maxima || null,
+      instructor: instructor || null
+    };
+
+    if (activo !== undefined) {
+      updateData.activo = activo;
+    }
+
+    const { error: updateError } = await supabase
+      .from('horarios_clases')
+      .update(updateData)
+      .eq('id', id);
+
+    if (updateError) {
+      console.error('Error actualizando horario:', updateError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: updateError.message });
+    }
 
     res.json({ message: 'Horario actualizado exitosamente' });
   } catch (error) {
     console.error('Error actualizando horario:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
@@ -101,24 +260,41 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    await executeQuery('DELETE FROM horarios_clases WHERE id = ?', [id]);
+    
+    const { error } = await supabase
+      .from('horarios_clases')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error eliminando horario:', error);
+      return res.status(500).json({ error: 'Error interno del servidor', details: error.message });
+    }
+
     res.json({ message: 'Horario eliminado exitosamente' });
   } catch (error) {
     console.error('Error eliminando horario:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
 // Obtener días festivos
 router.get('/festivos', async (req, res) => {
   try {
-    const diasFestivos = await executeQuery(
-      'SELECT * FROM dias_festivos ORDER BY fecha ASC'
-    );
-    res.json(diasFestivos);
+    const { data: diasFestivos, error } = await supabase
+      .from('dias_festivos')
+      .select('*')
+      .order('fecha', { ascending: true });
+
+    if (error) {
+      console.error('Error obteniendo días festivos:', error);
+      return res.status(500).json({ error: 'Error interno del servidor', details: error.message });
+    }
+
+    res.json(diasFestivos || []);
   } catch (error) {
     console.error('Error obteniendo días festivos:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
@@ -136,22 +312,34 @@ router.post('/festivos', [
     const { fecha, descripcion } = req.body;
 
     // Verificar si ya existe un día festivo en esa fecha
-    const existingFestivo = await executeQuery(
-      'SELECT id FROM dias_festivos WHERE fecha = ?',
-      [fecha]
-    );
+    const { data: existingFestivo, error: checkError } = await supabase
+      .from('dias_festivos')
+      .select('id')
+      .eq('fecha', fecha)
+      .limit(1);
 
-    if (existingFestivo.length > 0) {
+    if (checkError) {
+      console.error('Error verificando día festivo:', checkError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: checkError.message });
+    }
+
+    if (existingFestivo && existingFestivo.length > 0) {
       return res.status(400).json({ error: 'Ya existe un día festivo en esa fecha' });
     }
 
-    const result = await executeQuery(
-      'INSERT INTO dias_festivos (fecha, descripcion) VALUES (?, ?)',
-      [fecha, descripcion]
-    );
+    const { data: newFestivo, error: insertError } = await supabase
+      .from('dias_festivos')
+      .insert({ fecha, descripcion })
+      .select('id')
+      .single();
+
+    if (insertError) {
+      console.error('Error agregando día festivo:', insertError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: insertError.message });
+    }
 
     res.status(201).json({ 
-      id: result.insertId, 
+      id: newFestivo.id, 
       message: 'Día festivo agregado exitosamente' 
     });
   } catch (error) {
@@ -175,29 +363,47 @@ router.put('/festivos/:id', [
     const { fecha, descripcion } = req.body;
 
     // Verificar si el día festivo existe
-    const existingFestivo = await executeQuery(
-      'SELECT id FROM dias_festivos WHERE id = ?',
-      [id]
-    );
+    const { data: existingFestivo, error: checkError } = await supabase
+      .from('dias_festivos')
+      .select('id')
+      .eq('id', id)
+      .limit(1);
 
-    if (existingFestivo.length === 0) {
+    if (checkError) {
+      console.error('Error verificando día festivo:', checkError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: checkError.message });
+    }
+
+    if (!existingFestivo || existingFestivo.length === 0) {
       return res.status(404).json({ error: 'Día festivo no encontrado' });
     }
 
     // Verificar si ya existe otro día festivo en esa fecha (excluyendo el actual)
-    const duplicateFestivo = await executeQuery(
-      'SELECT id FROM dias_festivos WHERE fecha = ? AND id != ?',
-      [fecha, id]
-    );
+    const { data: duplicateFestivo, error: dupError } = await supabase
+      .from('dias_festivos')
+      .select('id')
+      .eq('fecha', fecha)
+      .neq('id', id)
+      .limit(1);
 
-    if (duplicateFestivo.length > 0) {
+    if (dupError) {
+      console.error('Error verificando duplicado:', dupError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: dupError.message });
+    }
+
+    if (duplicateFestivo && duplicateFestivo.length > 0) {
       return res.status(400).json({ error: 'Ya existe otro día festivo en esa fecha' });
     }
 
-    const result = await executeQuery(
-      'UPDATE dias_festivos SET fecha = ?, descripcion = ? WHERE id = ?',
-      [fecha, descripcion, id]
-    );
+    const { error: updateError } = await supabase
+      .from('dias_festivos')
+      .update({ fecha, descripcion })
+      .eq('id', id);
+
+    if (updateError) {
+      console.error('Error actualizando día festivo:', updateError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: updateError.message });
+    }
 
     res.json({ 
       message: 'Día festivo actualizado exitosamente',
@@ -214,19 +420,36 @@ router.delete('/festivos/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const result = await executeQuery(
-      'DELETE FROM dias_festivos WHERE id = ?',
-      [id]
-    );
+    // Verificar que existe antes de eliminar
+    const { data: existing, error: checkError } = await supabase
+      .from('dias_festivos')
+      .select('id')
+      .eq('id', id)
+      .limit(1);
 
-    if (result.affectedRows === 0) {
+    if (checkError) {
+      console.error('Error verificando día festivo:', checkError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: checkError.message });
+    }
+
+    if (!existing || existing.length === 0) {
       return res.status(404).json({ error: 'Día festivo no encontrado' });
+    }
+
+    const { error: deleteError } = await supabase
+      .from('dias_festivos')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      console.error('Error eliminando día festivo:', deleteError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: deleteError.message });
     }
 
     res.json({ message: 'Día festivo eliminado exitosamente' });
   } catch (error) {
     console.error('Error eliminando día festivo:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });
 
