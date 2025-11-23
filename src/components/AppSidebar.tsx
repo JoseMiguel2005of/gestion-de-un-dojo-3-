@@ -21,13 +21,25 @@ export function AppSidebar() {
   useEffect(() => {
     // Cargar tema desde localStorage
     const savedTheme = localStorage.getItem('sidebar_theme') as SidebarTheme;
-    if (savedTheme) {
+    if (savedTheme && savedTheme !== 'current') {
       setSidebarTheme(savedTheme);
+    } else {
+      // Si no hay tema guardado o es 'current', usar 'elegant' como predeterminado
+      setSidebarTheme('elegant');
+      localStorage.setItem('sidebar_theme', 'elegant');
     }
 
     // Escuchar cambios en el tema
     const handleThemeChange = (e: CustomEvent<SidebarTheme>) => {
-      setSidebarTheme(e.detail);
+      const newTheme = e.detail;
+      // Si el tema es 'current', convertirlo a 'elegant' para mantener consistencia
+      if (newTheme === 'current') {
+        setSidebarTheme('elegant');
+        localStorage.setItem('sidebar_theme', 'elegant');
+      } else {
+        setSidebarTheme(newTheme);
+        localStorage.setItem('sidebar_theme', newTheme);
+      }
     };
 
     window.addEventListener('sidebar-theme-change' as any, handleThemeChange);

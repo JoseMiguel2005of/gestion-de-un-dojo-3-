@@ -47,7 +47,7 @@ export default function Configuracion() {
     dojo_logo_url: '',
     dojo_fondo_url: '',
     tema_modo: 'light',
-    tema_sidebar: 'current' as SidebarTheme
+    tema_sidebar: 'elegant' as SidebarTheme
   });
 
   useEffect(() => {
@@ -83,7 +83,23 @@ export default function Configuracion() {
   const loadConfiguration = async () => {
     try {
       const data = await apiClient.getConfiguracion();
-      setConfig(prev => ({ ...prev, ...data }));
+      // Si no hay tema_sidebar o es 'current', usar 'elegant' como predeterminado
+      const temaSidebar = (data.tema_sidebar && data.tema_sidebar !== 'current') 
+        ? data.tema_sidebar 
+        : 'elegant';
+      
+      setConfig(prev => ({ 
+        ...prev, 
+        ...data, 
+        tema_sidebar: temaSidebar as SidebarTheme
+      }));
+      
+      // Guardar el tema de sidebar en localStorage si no está guardado o es 'current'
+      if (!localStorage.getItem('sidebar_theme') || data.tema_sidebar === 'current') {
+        localStorage.setItem('sidebar_theme', temaSidebar);
+        window.dispatchEvent(new CustomEvent('sidebar-theme-change', { detail: temaSidebar }));
+      }
+      
       // Guardar el tema inicial para comparar después
       previousThemeRef.current = data.tema_modo || 'light';
     } catch (error) {
