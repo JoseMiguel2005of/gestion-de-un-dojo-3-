@@ -112,7 +112,7 @@ export function NivelForm({ onSuccess }: NivelFormProps) {
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="nombre">{isEnglish ? "Category Name *" : "Nombre de la Categoría *"}</Label>
-        <Select onValueChange={(value) => setValue("nombre", value)} value={selectedNombre}>
+        <Select onValueChange={(value) => setValue("nombre", value)} value={selectedNombre || ""}>
           <SelectTrigger>
             <SelectValue placeholder={isEnglish ? "Select a category" : "Selecciona una categoría"} />
           </SelectTrigger>
@@ -133,7 +133,7 @@ export function NivelForm({ onSuccess }: NivelFormProps) {
         <Label htmlFor="color">{isEnglish ? "Belt Color" : "Color de Cinta"}</Label>
         <Select 
           onValueChange={(value) => setValue("color", value)} 
-          value={selectedColor}
+          value={selectedColor || ""}
           disabled={!selectedNombre}
         >
           <SelectTrigger>
@@ -148,7 +148,7 @@ export function NivelForm({ onSuccess }: NivelFormProps) {
                     className="w-4 h-4 rounded border" 
                     style={{ backgroundColor: selectedColor }}
                   />
-                  <span>{COLORES_JUDO.find(c => c.value === selectedColor)?.label}</span>
+                  <span>{getColoresJudo(isEnglish).find(c => c.value === selectedColor)?.label}</span>
                 </div>
               )}
             </SelectValue>
