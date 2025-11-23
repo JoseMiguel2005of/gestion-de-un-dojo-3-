@@ -160,7 +160,7 @@ export default function Horarios() {
                         <span className="text-gray-800 dark:text-gray-200">{dia}</span>
                       </CardTitle>
                       <Badge className={diasColores[dia]}>
-                        {horariosDelDia.length} {horariosDelDia.length === 1 ? (isEnglish ? 'class' : 'clase') : (isEnglish ? 'classes' : 'clases')}
+                        {horariosDelDia.length} {horariosDelDia.length === 1 ? getTranslation('commonMessages.class', isEnglish) : getTranslation('commonMessages.classes', isEnglish)}
                       </Badge>
                     </div>
                   </CardHeader>
@@ -179,7 +179,7 @@ export default function Horarios() {
                             <div className="flex items-center gap-2">
                               <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                               <div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">{isEnglish ? "Schedule" : "Horario"}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">{getTranslation('commonMessages.schedule', isEnglish)}</p>
                                 <p className="font-medium text-gray-800 dark:text-gray-200">
                                   {horario.hora_inicio.substring(0, 5)} - {horario.hora_fin.substring(0, 5)}
                                 </p>
@@ -190,9 +190,9 @@ export default function Horarios() {
                             <div className="flex items-center gap-2">
                               <Users className="h-4 w-4 text-green-600 dark:text-green-400" />
                               <div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">{isEnglish ? "Category" : "Categoría"}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">{getTranslation('commonMessages.category', isEnglish).replace(':', '')}</p>
                                 <p className="font-medium text-gray-800 dark:text-gray-200">
-                                  {horario.categoria_edad_nombre || (isEnglish ? 'All levels' : 'Todos los niveles')}
+                                  {horario.categoria_edad_nombre || getTranslation('commonMessages.allLevels', isEnglish)}
                                 </p>
                               </div>
                             </div>
@@ -215,9 +215,9 @@ export default function Horarios() {
                               <div className="flex items-center gap-2">
                                 <MapPin className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                                 <div>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">{isEnglish ? "Capacity" : "Capacidad"}</p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">{getTranslation('commonMessages.capacity', isEnglish)}</p>
                                   <p className="font-medium text-gray-800 dark:text-gray-200">
-                                    {horario.capacidad_maxima} {isEnglish ? "people" : "personas"}
+                                    {horario.capacidad_maxima} {getTranslation('commonMessages.people', isEnglish)}
                                   </p>
                                 </div>
                               </div>
@@ -243,7 +243,7 @@ export default function Horarios() {
                 <div className="flex items-center gap-2">
                   <AlertCircle className="h-6 w-6 text-orange-600 dark:text-orange-400" />
                   <CardTitle className="text-orange-800 dark:text-orange-400">
-                    {isEnglish ? "Holidays / Non-working Days" : "Días Festivos / No Laborables"}
+                    {getTranslation('commonMessages.holidays', isEnglish)}
                   </CardTitle>
                   <Badge variant="secondary" className="ml-2">
                     {diasFestivos.length}
@@ -258,7 +258,7 @@ export default function Horarios() {
                 </Button>
               </div>
               <CardDescription className="dark:text-gray-300">
-                {isEnglish ? "The dojo will be closed on the following dates" : "El dojo permanecerá cerrado en las siguientes fechas"}
+                {getTranslation('commonMessages.dojoClosed', isEnglish)}
               </CardDescription>
             </CardHeader>
             {diasFestivosExpandidos && (
@@ -266,7 +266,7 @@ export default function Horarios() {
                 {diasFestivos.length === 0 ? (
                   <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                     <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>{isEnglish ? "No holidays registered" : "No hay días festivos registrados"}</p>
+                    <p>{getTranslation('commonMessages.noHolidaysRegistered', isEnglish)}</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -315,13 +315,13 @@ export default function Horarios() {
                 <AlertCircle className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5" />
                 <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
                   <p>
-                    <strong>{isEnglish ? "Important:" : "Importante:"}</strong> {isEnglish ? "Arrive at least 10 minutes before class starts." : "Llega al menos 10 minutos antes del inicio de la clase."}
+                    <strong>{getTranslation('commonMessages.important', isEnglish)}</strong> {getTranslation('commonMessages.arriveEarly', isEnglish)}
                   </p>
                   <p>
-                    {isEnglish ? "If you cannot attend, please notify your instructor in advance." : "Si no puedes asistir, por favor notifica con anticipación a tu instructor."}
+                    {getTranslation('commonMessages.notifyInstructor', isEnglish)}
                   </p>
                   <p>
-                    {isEnglish ? "For more information, contact the dojo administration." : "Para más información, contacta a la administración del dojo."}
+                    {getTranslation('commonMessages.contactDojo', isEnglish)}
                   </p>
                 </div>
               </div>

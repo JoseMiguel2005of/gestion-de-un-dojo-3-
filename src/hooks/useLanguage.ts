@@ -770,6 +770,242 @@ export const translations = {
       es: "Negro",
       en: "Black"
     }
+  },
+
+  // Additional common translations
+  commonMessages: {
+    couldNotLoad: {
+      es: "No se pudieron cargar",
+      en: "Could not load"
+    },
+    couldNotSave: {
+      es: "No se pudo guardar",
+      en: "Could not save"
+    },
+    couldNotDelete: {
+      es: "No se pudo eliminar",
+      en: "Could not delete"
+    },
+    allCategories: {
+      es: "Todas las categorías",
+      en: "All categories"
+    },
+    allLevels: {
+      es: "Todos los niveles",
+      en: "All levels"
+    },
+    noTime: {
+      es: "Sin hora",
+      en: "No time"
+    },
+    notSpecified: {
+      es: "No especificada",
+      en: "Not specified"
+    },
+    noCategory: {
+      es: "Sin categoría",
+      en: "No category"
+    },
+    class: {
+      es: "clase",
+      en: "class"
+    },
+    classes: {
+      es: "clases",
+      en: "classes"
+    },
+    people: {
+      es: "personas",
+      en: "people"
+    },
+    equivalent: {
+      es: "Equivalente:",
+      en: "Equivalent:"
+    },
+    student: {
+      es: "Alumno:",
+      en: "Student:"
+    },
+    category: {
+      es: "Categoría:",
+      en: "Category:"
+    },
+    belt: {
+      es: "Cinta:",
+      en: "Belt:"
+    },
+    appliedDiscount: {
+      es: "Descuento aplicado:",
+      en: "Applied discount:"
+    },
+    nextPayment: {
+      es: "Próximo Pago",
+      en: "Next Payment"
+    },
+    dueDate: {
+      es: "Fecha límite:",
+      en: "Due date:"
+    },
+    amount: {
+      es: "Monto:",
+      en: "Amount:"
+    },
+    firstPaymentBreakdown: {
+      es: "Desglose del primer pago:",
+      en: "First payment breakdown:"
+    },
+    monthlyFee: {
+      es: "Mensualidad:",
+      en: "Monthly fee:"
+    },
+    registrationFee: {
+      es: "Costo de inscripción:",
+      en: "Registration fee:"
+    },
+    total: {
+      es: "Total:",
+      en: "Total:"
+    },
+    rememberToPay: {
+      es: "Recuerda pagar antes del día 5 de cada mes",
+      en: "Remember to pay before the 5th of each month"
+    },
+    currentMonth: {
+      es: "Mes actual:",
+      en: "Current month:"
+    },
+    lastPayment: {
+      es: "Último pago:",
+      en: "Last payment:"
+    },
+    paymentStatus: {
+      es: "Estado de pago:",
+      en: "Payment status:"
+    },
+    paid: {
+      es: "Pagado",
+      en: "Paid"
+    },
+    pending: {
+      es: "Pendiente",
+      en: "Pending"
+    },
+    overdue: {
+      es: "Vencido",
+      en: "Overdue"
+    },
+    paymentHistory: {
+      es: "Historial de Pagos",
+      en: "Payment History"
+    },
+    yourRecentPayments: {
+      es: "Tus últimos pagos registrados",
+      en: "Your recent registered payments"
+    },
+    noPaymentsYet: {
+      es: "No hay pagos registrados aún",
+      en: "No payments registered yet"
+    },
+    clickForDetails: {
+      es: "Clic para ver detalles completos",
+      en: "Click to see complete details"
+    },
+    name: {
+      es: "Nombre:",
+      en: "Name:"
+    },
+    date: {
+      es: "Fecha:",
+      en: "Date:"
+    },
+    time: {
+      es: "Hora:",
+      en: "Time:"
+    },
+    status: {
+      es: "Estado:",
+      en: "Status:"
+    },
+    completed: {
+      es: "Completado",
+      en: "Completed"
+    },
+    expand: {
+      es: "Expandir",
+      en: "Expand"
+    },
+    collapse: {
+      es: "Colapsar",
+      en: "Collapse"
+    },
+    evaluationRegistered: {
+      es: "evaluación(es) registrada(s)",
+      en: "evaluation(s) registered"
+    },
+    yourFirstExam: {
+      es: "Tu Primer Examen",
+      en: "Your First Exam"
+    },
+    timeRemaining: {
+      es: "Tiempo restante hasta poder presentar tu primer examen",
+      en: "Time remaining until you can take your first exam"
+    },
+    estimatedDate: {
+      es: "Fecha estimada:",
+      en: "Estimated date:"
+    },
+    preparationProgress: {
+      es: "Progreso de preparación",
+      en: "Preparation progress"
+    },
+    months: {
+      es: "meses",
+      en: "months"
+    },
+    youCanRegister: {
+      es: "¡Ya puedes inscribirte en evaluaciones! Revisa las evaluaciones disponibles abajo.",
+      en: "You can now register for evaluations! Check the available evaluations below."
+    },
+    meanwhileReview: {
+      es: "Mientras tanto, puedes revisar las evaluaciones disponibles para familiarizarte con el proceso.",
+      en: "Meanwhile, you can review available evaluations to familiarize yourself with the process."
+    },
+    schedule: {
+      es: "Horario",
+      en: "Schedule"
+    },
+    capacity: {
+      es: "Capacidad",
+      en: "Capacity"
+    },
+    holidays: {
+      es: "Días Festivos / No Laborables",
+      en: "Holidays / Non-working Days"
+    },
+    dojoClosed: {
+      es: "El dojo permanecerá cerrado en las siguientes fechas",
+      en: "The dojo will be closed on the following dates"
+    },
+    noHolidaysRegistered: {
+      es: "No hay días festivos registrados",
+      en: "No holidays registered"
+    },
+    important: {
+      es: "Importante:",
+      en: "Important:"
+    },
+    arriveEarly: {
+      es: "Llega al menos 10 minutos antes del inicio de la clase.",
+      en: "Arrive at least 10 minutes before class starts."
+    },
+    notifyInstructor: {
+      es: "Si no puedes asistir, por favor notifica con anticipación a tu instructor.",
+      en: "If you cannot attend, please notify your instructor in advance."
+    },
+    contactDojo: {
+      es: "Para más información, contacta a la administración del dojo.",
+      en: "For more information, contact the dojo administration."
+    }
   }
 };
 

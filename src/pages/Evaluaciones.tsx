@@ -41,8 +41,8 @@ export default function Evaluaciones() {
       setEvaluaciones(evaluacionesArray);
     } catch (error: any) {
       toast({
-        title: "Error",
-        description: "No se pudieron cargar las evaluaciones",
+        title: isEnglish ? "Error" : "Error",
+        description: isEnglish ? "Could not load evaluations" : "No se pudieron cargar las evaluaciones",
         variant: "destructive",
       });
     } finally {
@@ -134,9 +134,9 @@ export default function Evaluaciones() {
                 <Award className="h-6 w-6 text-white" />
               </div>
               <div>
-                <CardTitle className="text-indigo-700 dark:text-indigo-400">{isEnglish ? "Your First Exam" : "Tu Primer Examen"}</CardTitle>
+                <CardTitle className="text-indigo-700 dark:text-indigo-400">{getTranslation('commonMessages.yourFirstExam', isEnglish)}</CardTitle>
                 <CardDescription className="text-indigo-600 dark:text-indigo-300">
-                  {isEnglish ? "Time remaining until you can take your first exam" : "Tiempo restante hasta poder presentar tu primer examen"}
+                  {getTranslation('commonMessages.timeRemaining', isEnglish)}
                 </CardDescription>
               </div>
             </div>
@@ -154,7 +154,7 @@ export default function Evaluaciones() {
                       </p>
                       {examInfo.proximoExamenFecha && (
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {isEnglish ? "Estimated date: " : "Fecha estimada: "}{new Date(examInfo.proximoExamenFecha).toLocaleDateString(isEnglish ? 'en-US' : 'es-ES', {
+                          {getTranslation('commonMessages.estimatedDate', isEnglish)} {new Date(examInfo.proximoExamenFecha).toLocaleDateString(isEnglish ? 'en-US' : 'es-ES', {
                             weekday: 'long',
                             year: 'numeric',
                             month: 'long',
@@ -169,11 +169,11 @@ export default function Evaluaciones() {
                       <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border">
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                            {isEnglish ? "Preparation progress" : "Progreso de preparación"}
+                            {getTranslation('commonMessages.preparationProgress', isEnglish)}
                           </span>
                           <div className="text-right">
                             <span className="text-sm text-gray-500 dark:text-gray-400">
-                              {examInfo.tiempoPreparacionMeses} {isEnglish ? "months" : "meses"}
+                              {examInfo.tiempoPreparacionMeses} {getTranslation('commonMessages.months', isEnglish)}
                             </span>
                           </div>
                         </div>
@@ -207,7 +207,7 @@ export default function Evaluaciones() {
                   {examInfo.puedePresentar && (
                     <div className="bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg p-3">
                       <p className="text-green-800 dark:text-green-200 font-medium">
-                        🎉 {isEnglish ? "You can now register for evaluations! Check the available evaluations below." : "¡Ya puedes inscribirte en evaluaciones! Revisa las evaluaciones disponibles abajo."}
+                        🎉 {getTranslation('commonMessages.youCanRegister', isEnglish)}
                       </p>
                     </div>
                   )}
@@ -215,7 +215,7 @@ export default function Evaluaciones() {
                   {!examInfo.puedePresentar && examInfo.tiempoRestante && (
                     <div className="bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
                       <p className="text-blue-800 dark:text-blue-200 text-sm">
-                        💡 {isEnglish ? "Meanwhile, you can review available evaluations to familiarize yourself with the process." : "Mientras tanto, puedes revisar las evaluaciones disponibles para familiarizarte con el proceso."}
+                        💡 {getTranslation('commonMessages.meanwhileReview', isEnglish)}
                       </p>
                     </div>
                   )}
@@ -242,17 +242,17 @@ export default function Evaluaciones() {
               {listaMinimizada ? (
                 <>
                   <ChevronDown className="h-4 w-4 mr-1" />
-                  {isEnglish ? "Expand" : "Expandir"}
+                  {getTranslation('commonMessages.expand', isEnglish)}
                 </>
               ) : (
                 <>
                   <ChevronUp className="h-4 w-4 mr-1" />
-                  {isEnglish ? "Collapse" : "Colapsar"}
+                  {getTranslation('commonMessages.collapse', isEnglish)}
                 </>
               )}
             </Button>
           </div>
-          <CardDescription className="text-gray-600 dark:text-gray-300">{evaluaciones.length} {isEnglish ? "evaluation(s) registered" : "evaluación(es) registrada(s)"}</CardDescription>
+          <CardDescription className="text-gray-600 dark:text-gray-300">{evaluaciones.length} {getTranslation('commonMessages.evaluationRegistered', isEnglish)}</CardDescription>
         </CardHeader>
         <CardContent>
           {!listaMinimizada && (
@@ -304,12 +304,12 @@ export default function Evaluaciones() {
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                          ⏰ {isEnglish ? "No time" : "Sin hora"}
+                          ⏰ {getTranslation('commonMessages.noTime', isEnglish)}
                         </span>
                       )}
                     </TableCell>
                     <TableCell className="text-gray-700 dark:text-gray-300">
-                      {evaluacion.categoria_examen || (isEnglish ? "All categories" : "Todas las categorías")}
+                      {evaluacion.categoria_examen || getTranslation('commonMessages.allCategories', isEnglish)}
                     </TableCell>
                     <TableCell>
                       <span className={evaluacion.estado === "pendiente" ? "text-yellow-600 dark:text-yellow-400 font-medium" : "text-green-600 dark:text-green-400 font-medium"}>
@@ -361,17 +361,17 @@ export default function Evaluaciones() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{isEnglish ? "Name:" : "Nombre:"}</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{getTranslation('commonMessages.name', isEnglish)}</label>
                   <p className="text-sm text-gray-900 dark:text-gray-100">{evaluacionSeleccionada.nombre}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{isEnglish ? "Date:" : "Fecha:"}</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{getTranslation('commonMessages.date', isEnglish)}</label>
                   <p className="text-sm text-gray-900 dark:text-gray-100">
                     {format(new Date(evaluacionSeleccionada.fecha), isEnglish ? "MM/dd/yyyy" : "dd/MM/yyyy", { locale: isEnglish ? undefined : es })}
                   </p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{isEnglish ? "Time:" : "Hora:"}</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{getTranslation('commonMessages.time', isEnglish)}</label>
                   <p className="text-sm text-gray-900 dark:text-gray-100">
                     {evaluacionSeleccionada.hora 
                       ? new Date(`2000-01-01T${evaluacionSeleccionada.hora}`).toLocaleTimeString(isEnglish ? 'en-US' : 'es-ES', { 
@@ -379,14 +379,14 @@ export default function Evaluaciones() {
                           minute: '2-digit',
                           hour12: true 
                         })
-                      : (isEnglish ? "Not specified" : "No especificada")
+                      : getTranslation('commonMessages.notSpecified', isEnglish)
                     }
                   </p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{isEnglish ? "Category:" : "Categoría:"}</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{getTranslation('commonMessages.category', isEnglish)}</label>
                   <p className="text-sm text-gray-900 dark:text-gray-100">
-                    {evaluacionSeleccionada.categoria_examen || (isEnglish ? "All categories" : "Todas las categorías")}
+                    {evaluacionSeleccionada.categoria_examen || getTranslation('commonMessages.allCategories', isEnglish)}
                   </p>
                 </div>
               </div>
@@ -399,7 +399,7 @@ export default function Evaluaciones() {
                 </div>
               )}
               <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{isEnglish ? "Status:" : "Estado:"}</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{getTranslation('commonMessages.status', isEnglish)}</label>
                 <p className={`text-sm font-medium mt-1 ${
                   evaluacionSeleccionada.estado === "pendiente" 
                     ? "text-yellow-600 dark:text-yellow-400" 

@@ -112,8 +112,8 @@ export default function Pagos() {
     } catch (error: any) {
       console.error('Error cargando datos:', error);
       toast({
-        title: "Error",
-        description: "No se pudieron cargar los datos de pagos",
+        title: isEnglish ? "Error" : "Error",
+        description: isEnglish ? "Could not load payment data" : "No se pudieron cargar los datos de pagos",
         variant: "destructive",
       });
     } finally {
@@ -248,10 +248,10 @@ export default function Pagos() {
                   </p>
                   {precioAlumno && (
                     <div className="text-sm text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-200 dark:border-gray-700 space-y-1">
-                      <p><span className="font-medium">{isEnglish ? "Student:" : "Alumno:"}</span> {precioAlumno.nombre}</p>
-                      <p><span className="font-medium">{isEnglish ? "Category:" : "Categoría:"}</span> {precioAlumno.categoria_nombre || (isEnglish ? 'No category' : 'Sin categoría')}</p>
+                      <p><span className="font-medium">{getTranslation('commonMessages.student', isEnglish)}</span> {precioAlumno.nombre}</p>
+                      <p><span className="font-medium">{getTranslation('commonMessages.category', isEnglish)}</span> {precioAlumno.categoria_nombre || getTranslation('commonMessages.noCategory', isEnglish)}</p>
                       {precioAlumno.cinta_alumno && (
-                        <p><span className="font-medium">{isEnglish ? "Belt:" : "Cinta:"}</span> 
+                        <p><span className="font-medium">{getTranslation('commonMessages.belt', isEnglish)}</span> 
                           <span className="text-purple-600 dark:text-purple-400 font-medium ml-1">
                             {translateBelt(precioAlumno.cinta_alumno, isEnglish)}
                           </span>
@@ -259,7 +259,7 @@ export default function Pagos() {
                       )}
                       {precioAlumno.descuento_porcentaje && precioAlumno.descuento_porcentaje > 0 && (
                         <p className="text-green-600 dark:text-green-400">
-                          <span className="font-medium">{isEnglish ? "Applied discount:" : "Descuento aplicado:"}</span> {precioAlumno.descuento_porcentaje}%
+                          <span className="font-medium">{getTranslation('commonMessages.appliedDiscount', isEnglish)}</span> {precioAlumno.descuento_porcentaje}%
                         </p>
                       )}
                     </div>
@@ -274,29 +274,29 @@ export default function Pagos() {
                   {/* Información del próximo pago */}
                   <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
                     <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
-                      📅 {isEnglish ? "Next Payment" : "Próximo Pago"}
+                      📅 {getTranslation('commonMessages.nextPayment', isEnglish)}
                     </h4>
                     <div className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
                       <p>
-                        <span className="font-medium">{isEnglish ? "Due date:" : "Fecha límite:"}</span> {getProximoMes()}
+                        <span className="font-medium">{getTranslation('commonMessages.dueDate', isEnglish)}</span> {getProximoMes()}
                       </p>
                       <p>
-                        <span className="font-medium">{isEnglish ? "Amount:" : "Monto:"}</span> 
+                        <span className="font-medium">{getTranslation('commonMessages.amount', isEnglish)}</span> 
                         <span className="text-lg font-bold text-blue-700 dark:text-blue-300 ml-1">
                           {formatPrice(precioAlumno?.precio_final || 0)}
                         </span>
                       </p>
                       {precioAlumno?.es_alumno_nuevo && (
                         <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 p-2 rounded border-l-2 border-blue-400">
-                          <p className="font-medium mb-1">{isEnglish ? "First payment breakdown:" : "Desglose del primer pago:"}</p>
-                          <p>• {isEnglish ? "Monthly fee:" : "Mensualidad:"} {formatPrice(precioAlumno?.precio_base || 0)}</p>
-                          <p>• {isEnglish ? "Registration fee:" : "Costo de inscripción:"} {formatPrice(precioAlumno?.costo_inscripcion || 0)}</p>
-                          <p className="font-medium mt-1">• {isEnglish ? "Total:" : "Total:"} {formatPrice(precioAlumno?.precio_final || 0)}</p>
+                          <p className="font-medium mb-1">{getTranslation('commonMessages.firstPaymentBreakdown', isEnglish)}</p>
+                          <p>• {getTranslation('commonMessages.monthlyFee', isEnglish)} {formatPrice(precioAlumno?.precio_base || 0)}</p>
+                          <p>• {getTranslation('commonMessages.registrationFee', isEnglish)} {formatPrice(precioAlumno?.costo_inscripcion || 0)}</p>
+                          <p className="font-medium mt-1">• {getTranslation('commonMessages.total', isEnglish)} {formatPrice(precioAlumno?.precio_final || 0)}</p>
                         </div>
                       )}
                       {configPagos?.moneda === 'USD$' && (
                         <p className="text-sm text-blue-600 dark:text-blue-400">
-                          <span className="font-medium">{isEnglish ? "Equivalent:" : "Equivalente:"}</span> BS. {((precioAlumno?.precio_final || 0) * 201).toLocaleString('es-VE', {
+                          <span className="font-medium">{getTranslation('commonMessages.equivalent', isEnglish)}</span> BS. {((precioAlumno?.precio_final || 0) * 201).toLocaleString('es-VE', {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2
                           })}
@@ -304,11 +304,11 @@ export default function Pagos() {
                       )}
                       {configPagos?.moneda === 'BS.' && (
                         <p className="text-sm text-blue-600 dark:text-blue-400">
-                          <span className="font-medium">{isEnglish ? "Equivalent:" : "Equivalente:"}</span> USD$ {Number(precioAlumno?.precio_final || 0).toFixed(2)}
+                          <span className="font-medium">{getTranslation('commonMessages.equivalent', isEnglish)}</span> USD$ {Number(precioAlumno?.precio_final || 0).toFixed(2)}
                         </p>
                       )}
                       <p className="text-xs text-blue-600 dark:text-blue-400">
-                        {isEnglish ? "Remember to pay before the 5th of each month" : "Recuerda pagar antes del día 5 de cada mes"}
+                        {getTranslation('commonMessages.rememberToPay', isEnglish)}
                       </p>
                     </div>
                   </div>
@@ -335,7 +335,7 @@ export default function Pagos() {
             <CardContent>
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600 dark:text-gray-300">{isEnglish ? "Current month:" : "Mes actual:"}</span>
+                  <span className="text-gray-600 dark:text-gray-300">{getTranslation('commonMessages.currentMonth', isEnglish)}</span>
                   <Badge className="bg-blue-600 hover:bg-blue-700">
                     {new Date().toLocaleDateString(isEnglish ? 'en-US' : 'es-ES', { month: 'long', year: 'numeric' })}
                   </Badge>
@@ -344,7 +344,7 @@ export default function Pagos() {
                 {lastPayment ? (
                   <>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600 dark:text-gray-300">{isEnglish ? "Last payment:" : "Último pago:"}</span>
+                      <span className="text-gray-600 dark:text-gray-300">{getTranslation('commonMessages.lastPayment', isEnglish)}</span>
                       <Badge className="bg-green-600 hover:bg-green-700">
                         <CheckCircle className="h-3 w-3 mr-1" />
                         {new Date(lastPayment.fecha_pago).toLocaleDateString(isEnglish ? 'en-US' : 'es-ES', { 
