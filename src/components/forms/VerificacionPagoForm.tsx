@@ -64,7 +64,7 @@ type VerificacionPagoFormData = {
   telefono_cuenta: string;
   fecha_transferencia: string;
   monto: string;
-  metodo_pago: "transferencia" | "pago_movil" | "zelle" | "paypal";
+  metodo_pago: "transferencia" | "pago_movil";
 };
 
 interface VerificacionPagoFormProps {
@@ -138,7 +138,7 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: Verifica
           const num = parseFloat(val);
           return !isNaN(num) && num > 0;
         }, isEnglish ? "Amount must be a positive number" : "El monto debe ser un número positivo"),
-      metodo_pago: z.enum(["transferencia", "pago_movil", "zelle", "paypal"]),
+      metodo_pago: z.enum(["transferencia", "pago_movil"]),
     });
   }, [paisConfiguracion, isEnglish]);
 
@@ -489,10 +489,6 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: Verifica
           <Label htmlFor="referencia">
             {metodoPago === "pago_movil" 
               ? (isEnglish ? "Mobile Payment Reference" : "Referencia del Pago Móvil")
-              : metodoPago === "zelle" 
-              ? (isEnglish ? "Zelle Reference" : "Referencia de Zelle")
-              : metodoPago === "paypal" 
-              ? (isEnglish ? "PayPal Reference" : "Referencia de PayPal")
               : (isEnglish ? "Payment Reference" : "Referencia del Pago")
             }
           </Label>
