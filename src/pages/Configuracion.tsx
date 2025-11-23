@@ -201,6 +201,12 @@ export default function Configuracion() {
 
   const handleChange = (key: string, value: string) => {
     setConfig(prev => ({ ...prev, [key]: value }));
+    
+    // Si se cambia el tema del sidebar, actualizar inmediatamente el sidebar
+    if (key === 'tema_sidebar') {
+      localStorage.setItem('sidebar_theme', value);
+      window.dispatchEvent(new CustomEvent('sidebar-theme-change', { detail: value }));
+    }
   };
 
   const toggleTemaMode = () => {
