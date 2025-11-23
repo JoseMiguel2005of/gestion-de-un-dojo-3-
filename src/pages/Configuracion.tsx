@@ -99,10 +99,13 @@ export default function Configuracion() {
         tema_sidebar: temaSidebar
       }));
       
-      // SIEMPRE actualizar localStorage y disparar evento para sincronizar con AppSidebar
-      // Esto asegura que el sidebar se actualice correctamente según lo que está en la BD
-      localStorage.setItem('sidebar_theme', temaSidebar);
-      window.dispatchEvent(new CustomEvent('sidebar-theme-change', { detail: temaSidebar }));
+      // Actualizar localStorage y disparar evento para sincronizar con AppSidebar
+      // Solo actualizar si es diferente al valor actual para evitar cambios innecesarios
+      const currentLocalTheme = localStorage.getItem('sidebar_theme');
+      if (currentLocalTheme !== temaSidebar) {
+        localStorage.setItem('sidebar_theme', temaSidebar);
+        window.dispatchEvent(new CustomEvent('sidebar-theme-change', { detail: temaSidebar }));
+      }
       
       // Guardar el tema inicial para comparar después
       previousThemeRef.current = data.tema_modo || 'light';
