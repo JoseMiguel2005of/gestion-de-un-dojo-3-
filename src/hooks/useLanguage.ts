@@ -7,16 +7,14 @@ export interface LanguageConfig {
 }
 
 export function useLanguage() {
-  const [languageConfig, setLanguageConfig] = useState<LanguageConfig>({
-    isEnglish: false,
-    currency: 'BS.'
-  });
+  const [isEnglish, setIsEnglish] = useState<boolean>(false);
+  const [currency, setCurrency] = useState<string>('BS.');
 
   useEffect(() => {
     const loadLanguageConfig = async () => {
       try {
         let userLanguage = 'es';
-        let currency = 'BS.';
+        let userCurrency = 'BS.';
         
         // Verificar si hay token antes de hacer llamadas a la API
         const token = localStorage.getItem('auth_token');
@@ -35,10 +33,10 @@ export function useLanguage() {
           // 2. Obtener configuración de moneda (intenta, pero no falla si no está autenticado)
           try {
             const config = await apiClient.getConfigPagos();
-            currency = config.moneda || 'BS.';
+            userCurrency = config.moneda || 'BS.';
           } catch (error) {
             // Si no puede obtener config, usa default
-            currency = 'BS.';
+            userCurrency = 'BS.';
           }
         } else {
           // Si no hay token, intentar obtener idioma del sistema (público)
@@ -51,17 +49,13 @@ export function useLanguage() {
           }
         }
         
-        setLanguageConfig({
-          isEnglish: userLanguage === 'en',
-          currency: currency
-        });
+        setIsEnglish(userLanguage === 'en');
+        setCurrency(userCurrency);
       } catch (error) {
         console.error('Error loading language config:', error);
         // Default to Spanish
-        setLanguageConfig({
-          isEnglish: false,
-          currency: 'BS.'
-        });
+        setIsEnglish(false);
+        setCurrency('BS.');
       }
     };
 
@@ -74,15 +68,8 @@ export function useLanguage() {
       if (customEvent?.detail?.idioma_preferido) {
         const newLanguage = customEvent.detail.idioma_preferido;
         const newIsEnglish = newLanguage === 'en';
-        // Forzar actualización del estado usando la función de actualización
-        // que recibe el estado anterior
-        setLanguageConfig(prev => {
-          console.log('🌐 Idioma cambiado a:', newLanguage, 'isEnglish:', newIsEnglish, 'currency anterior:', prev.currency);
-          return {
-            isEnglish: newIsEnglish,
-            currency: prev.currency // Usar el valor anterior del estado
-          };
-        });
+        console.log('🌐 Idioma cambiado a:', newLanguage, 'isEnglish:', newIsEnglish);
+        setIsEnglish(newIsEnglish);
       }
     };
     
@@ -93,7 +80,7 @@ export function useLanguage() {
     };
   }, []);
 
-  return languageConfig;
+  return { isEnglish, currency };
 }
 
 // Translations object
