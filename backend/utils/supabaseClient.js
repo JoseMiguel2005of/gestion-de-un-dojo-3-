@@ -9,26 +9,35 @@ const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE
 let supabaseKey;
 let keyType = 'unknown';
 
+// Verificar todas las variables de entorno disponibles (para debugging)
+const hasServiceRoleKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+const hasAnonKey = !!process.env.SUPABASE_ANON_KEY;
+const hasNextPublicAnonKey = !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+console.log('🔍 Variables de entorno Supabase:');
+console.log(`   SUPABASE_SERVICE_ROLE_KEY: ${hasServiceRoleKey ? '✅ Configurada' : '❌ No configurada'}`);
+console.log(`   SUPABASE_ANON_KEY: ${hasAnonKey ? '✅ Configurada' : '❌ No configurada'}`);
+console.log(`   NEXT_PUBLIC_SUPABASE_ANON_KEY: ${hasNextPublicAnonKey ? '✅ Configurada' : '❌ No configurada'}`);
+
 if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
   supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   keyType = 'SERVICE_ROLE_KEY';
+  console.log('✅ Usando SUPABASE_SERVICE_ROLE_KEY (permisos completos)');
 } else if (process.env.SUPABASE_ANON_KEY) {
   supabaseKey = process.env.SUPABASE_ANON_KEY;
   keyType = 'ANON_KEY';
+  console.warn('⚠️ ADVERTENCIA: Usando SUPABASE_ANON_KEY. Esto puede causar problemas de permisos.');
+  console.warn('   ⚠️ CONFIGURA SUPABASE_SERVICE_ROLE_KEY en Vercel Environment Variables');
 } else if (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
   supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   keyType = 'NEXT_PUBLIC_ANON_KEY';
+  console.warn('⚠️ ADVERTENCIA: Usando NEXT_PUBLIC_SUPABASE_ANON_KEY. Esto puede causar problemas de permisos.');
+  console.warn('   ⚠️ CONFIGURA SUPABASE_SERVICE_ROLE_KEY en Vercel Environment Variables');
 } else {
   supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNnZWJzYnRyb2tvd3RkdGp3bm11Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4NDk5OTksImV4cCI6MjA3OTQyNTk5OX0.uoTChrvYEZBUuL-RnmrlYAN1mGn65K8BiYMdrOLmeJg';
   keyType = 'FALLBACK_ANON_KEY';
-}
-
-// Log para debugging (siempre, para ver qué key se está usando)
-console.log(`🔑 Supabase usando: ${keyType}`);
-if (keyType !== 'SERVICE_ROLE_KEY') {
-  console.warn('⚠️ ADVERTENCIA: No se está usando SERVICE_ROLE_KEY. Esto puede causar problemas de permisos.');
-  console.warn('   Configura SUPABASE_SERVICE_ROLE_KEY en Vercel Environment Variables');
-  console.warn(`   Variables disponibles: SUPABASE_SERVICE_ROLE_KEY=${!!process.env.SUPABASE_SERVICE_ROLE_KEY}, SUPABASE_ANON_KEY=${!!process.env.SUPABASE_ANON_KEY}`);
+  console.error('❌ ERROR: No se encontró ninguna clave de Supabase. Usando fallback.');
+  console.error('   ⚠️ CONFIGURA SUPABASE_SERVICE_ROLE_KEY en Vercel Environment Variables');
 }
 
 if (!supabaseUrl || !supabaseKey) {
