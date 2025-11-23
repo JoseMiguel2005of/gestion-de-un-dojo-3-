@@ -159,8 +159,6 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: Verifica
 
   const metodoPago = watch("metodo_pago");
 
-  const metodoPago = watch("metodo_pago");
-
   // Actualizar el resolver cuando cambie el país
   useEffect(() => {
     reset({
