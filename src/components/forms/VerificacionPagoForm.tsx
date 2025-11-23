@@ -157,7 +157,7 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: Verifica
     },
   });
 
-  // Actualizar el resolver cuando cambie el país
+  // Actualizar el resolver cuando cambie el país o el método de pago
   useEffect(() => {
     reset({
       monto: String(montoPagar),
@@ -169,6 +169,16 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: Verifica
       telefono_cuenta: '',
     });
   }, [paisConfiguracion, reset, montoPagar]);
+
+  // Resetear campos cuando cambie el método de pago
+  useEffect(() => {
+    if (metodoPago) {
+      setValue('banco_origen', '');
+      setValue('referencia', '');
+      setValue('cedula_titular', '');
+      setValue('telefono_cuenta', '');
+    }
+  }, [metodoPago, setValue]);
 
   const metodoPago = watch("metodo_pago");
 
@@ -429,8 +439,6 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: Verifica
             {paisConfiguracion === 'usa' ? (
               <>
                 <SelectItem value="transferencia">{getTranslation('paymentVerification.bankTransfer', isEnglish)}</SelectItem>
-                <SelectItem value="zelle">{getTranslation('paymentVerification.zelle', isEnglish)}</SelectItem>
-                <SelectItem value="paypal">{getTranslation('paymentVerification.paypal', isEnglish)}</SelectItem>
               </>
             ) : (
               <>
@@ -524,7 +532,7 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: Verifica
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="cedula_titular">
-            {moneda === 'USD$' 
+            {paisConfiguracion === 'usa' 
               ? getTranslation('paymentVerification.idHolder', isEnglish)
               : getTranslation('paymentVerification.cedulaHolder', isEnglish)
             }
@@ -532,9 +540,9 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: Verifica
           <Input 
             id="cedula_titular" 
             {...register("cedula_titular")} 
-            placeholder={moneda === 'USD$' ? "123-45-6789" : "V-12345678"}
-            pattern={moneda === 'USD$' ? "\\d{3}-?\\d{2}-?\\d{4}" : "[VvEeJjGgPp]-?\\d{7,8}"}
-            title={moneda === 'USD$' ? "Formato: 123-45-6789 o 123456789 (SSN o ID)" : "Formato: V-12345678 o V12345678 (V, E, J, G o P seguido de 7-8 dígitos)"}
+            placeholder={paisConfiguracion === 'usa' ? "123-45-6789" : "V-12345678"}
+            pattern={paisConfiguracion === 'usa' ? "\\d{3}-?\\d{2}-?\\d{4}" : "[VvEeJjGgPp]-?\\d{7,8}"}
+            title={paisConfiguracion === 'usa' ? "Formato: 123-45-6789 o 123456789 (SSN o ID)" : "Formato: V-12345678 o V12345678 (V, E, J, G o P seguido de 7-8 dígitos)"}
           />
           {errors.cedula_titular && (
             <p className="text-sm text-destructive">{errors.cedula_titular.message}</p>
@@ -543,7 +551,7 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: Verifica
 
         <div className="space-y-2">
           <Label htmlFor="telefono_cuenta">
-            {moneda === 'USD$' 
+            {paisConfiguracion === 'usa' 
               ? getTranslation('paymentVerification.phoneHolder', isEnglish)
               : getTranslation('paymentVerification.accountPhone', isEnglish)
             }
@@ -551,9 +559,9 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: Verifica
           <Input 
             id="telefono_cuenta" 
             {...register("telefono_cuenta")} 
-            placeholder={moneda === 'USD$' ? "(555) 123-4567" : "04121234567"}
-            pattern={moneda === 'USD$' ? "\\(\\d{3}\\)\\s?\\d{3}-?\\d{4}|\\d{3}-?\\d{3}-?\\d{4}" : "0\\d{3}-?\\d{7}"}
-            title={moneda === 'USD$' ? "Formato: (555) 123-4567 o 555-123-4567" : "Formato: 04121234567 o 0412-1234567 (11 dígitos comenzando con 0)"}
+            placeholder={paisConfiguracion === 'usa' ? "(555) 123-4567" : "04121234567"}
+            pattern={paisConfiguracion === 'usa' ? "\\(\\d{3}\\)\\s?\\d{3}-?\\d{4}|\\d{3}-?\\d{3}-?\\d{4}" : "0\\d{3}-?\\d{7}"}
+            title={paisConfiguracion === 'usa' ? "Formato: (555) 123-4567 o 555-123-4567" : "Formato: 04121234567 o 0412-1234567 (11 dígitos comenzando con 0)"}
             inputMode="numeric"
           />
           {errors.telefono_cuenta && (

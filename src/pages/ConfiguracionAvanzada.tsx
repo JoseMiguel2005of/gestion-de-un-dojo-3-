@@ -779,7 +779,7 @@ export default function ConfiguracionAvanzada() {
                     onValueChange={(value) => {
                       // Actualizar métodos de pago según el país seleccionado
                       const nuevosMetodos = value === 'usa' 
-                        ? ['Transferencia Bancaria', 'Zelle', 'PayPal']
+                        ? ['Transferencia Bancaria']
                         : ['Pago Móvil', 'Transferencia Bancaria'];
                       
                       setConfigPagos({
