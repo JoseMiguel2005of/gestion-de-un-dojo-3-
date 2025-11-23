@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useTheme } from "@/hooks/useTheme";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ import type { SidebarTheme } from "@/hooks/useTheme";
 export default function Configuracion() {
   const { user } = useAuth();
   const { isEnglish } = useLanguage();
+  const { loadTheme } = useTheme();
   const [status, setStatus] = useState<"checking" | "connected" | "error">("checking");
   const [loading, setLoading] = useState(false);
   const [generatingDemo, setGeneratingDemo] = useState(false);
@@ -24,6 +26,9 @@ export default function Configuracion() {
   const [generatingResults, setGeneratingResults] = useState(false);
   const [userLanguage, setUserLanguage] = useState<string>('es');
   const [applyLanguageGlobally, setApplyLanguageGlobally] = useState(false);
+  
+  // Guardar el tema anterior para comparar si cambió
+  const previousThemeRef = useRef<string>('light');
   
   // Verificar si el usuario es admin
   const isAdmin = user?.rol === 'admin';
@@ -66,6 +71,8 @@ export default function Configuracion() {
     try {
       const data = await apiClient.getConfiguracion();
       setConfig(prev => ({ ...prev, ...data }));
+      // Guardar el tema inicial para comparar después
+      previousThemeRef.current = data.tema_modo || 'light';
     } catch (error) {
       console.error('Error cargando configuración:', error);
     }
@@ -111,9 +118,13 @@ export default function Configuracion() {
         description: isEnglish ? "Changes have been applied successfully" : "Los cambios se han aplicado correctamente",
       });
       
-      // Recargar solo si cambió el modo (no para sidebar ni idioma)
-      if (config.tema_modo !== 'light') {
-        setTimeout(() => window.location.reload(), 500);
+      // Aplicar el tema directamente sin recargar la página
+      // Esto evita que se pierda la sesión
+      const temaCambio = previousThemeRef.current !== config.tema_modo;
+      if (temaCambio) {
+        // Recargar el tema desde la configuración guardada
+        await loadTheme();
+        previousThemeRef.current = config.tema_modo;
       }
     } catch (error: any) {
       toast({
