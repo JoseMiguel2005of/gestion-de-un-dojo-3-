@@ -323,15 +323,6 @@ class ApiClient {
     });
   }
 
-  // Métodos para cintas
-  async getCintas() {
-    return this.request<any[]>('/niveles/cintas');
-  }
-
-  async getCinta(id: string) {
-    return this.request<any>(`/niveles/cintas/${id}`);
-  }
-
   async deleteCategoriaEdad(id: string) {
     return this.request<any>(`/niveles/categorias-edad/${id}`, {
       method: 'DELETE',
