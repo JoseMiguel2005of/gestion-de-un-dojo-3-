@@ -76,6 +76,8 @@ router.get('/', async (req, res) => {
     const userId = req.user?.id;
     
     // Obtener alumnos con sus relaciones básicas
+    // NO filtrar por estado aquí para que el frontend pueda mostrar todos los alumnos
+    // El frontend filtrará según sea necesario
     let alumnosQuery = supabase
       .from('alumno')
       .select(`
@@ -84,7 +86,6 @@ router.get('/', async (req, res) => {
         cintas:id_cinta(nombre, color_hex),
         usuario:sensei_id(nombre_completo)
       `)
-      .eq('estado', true)
       .order('nombre', { ascending: true });
 
     // Filtrar por usuario si es necesario
