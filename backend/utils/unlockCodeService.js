@@ -64,9 +64,10 @@ export const incrementFailedAttempts = async (usuarioId) => {
   console.log(`🔐 Incrementando intentos fallidos para usuario ID: ${usuarioId}`);
   const lockRecord = await getOrCreateLockRecord(usuarioId);
   
-  // Verificar si han pasado más de 5 minutos desde el último intento
+  // Verificar si han pasado más de 2 minutos desde el último intento
   // Si es así, resetear los intentos (no acumular de sesiones anteriores)
-  const RESET_WINDOW_MINUTES = 5;
+  // Esto asegura que solo se cuenten intentos de la misma sesión
+  const RESET_WINDOW_MINUTES = 2;
   let intentosActuales = lockRecord.intentos_fallidos || 0;
   
   if (lockRecord.updated_at) {
