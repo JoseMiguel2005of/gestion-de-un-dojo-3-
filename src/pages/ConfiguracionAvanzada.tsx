@@ -74,7 +74,6 @@ export default function ConfiguracionAvanzada() {
   const [configPagos, setConfigPagos] = useState({
     dia_corte: 1,
     descuento_pago_adelantado: 0,
-    recargo_mora: 0,
     moneda: 'USD$',
     metodos_pago: ['Efectivo', 'Transferencia', 'Pago Móvil'],
     datos_bancarios: '',
@@ -788,9 +787,8 @@ export default function ConfiguracionAvanzada() {
                 <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
                   <li>• <strong>Precio base:</strong> Se toma de la categoría/cinta específica de cada estudiante (en USD$)</li>
                   <li>• <strong>Descuentos:</strong> Se aplican sobre el precio base de la categoría</li>
-                  <li>• <strong>Recargos:</strong> Se aplican cuando el pago se hace después del día de corte</li>
                   <li>• <strong>Conversión BS.:</strong> Si seleccionas BS., se multiplica automáticamente por la tasa de cambio configurada (actualmente: {configPagos.tipo_cambio_usd_bs || 220})</li>
-                  <li>• <strong>Resultado final:</strong> Precio categoría ± descuentos ± recargos (convertido si es BS.)</li>
+                  <li>• <strong>Resultado final:</strong> Precio categoría ± descuentos (convertido si es BS.)</li>
                 </ul>
               </div>
               <div className="grid md:grid-cols-2 gap-6">
@@ -861,19 +859,6 @@ export default function ConfiguracionAvanzada() {
                   />
                   <p className="text-xs text-muted-foreground mt-1">
                     Descuento por pagar antes del día de corte
-                  </p>
-                </div>
-                <div>
-                  <Label>Recargo por Mora (%)</Label>
-                  <Input 
-                    type="number" 
-                    min="0" 
-                    max="100" 
-                    value={configPagos.recargo_mora}
-                    onChange={(e) => setConfigPagos({...configPagos, recargo_mora: parseFloat(e.target.value)})}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Recargo adicional por pagar después del día de corte
                   </p>
                 </div>
                 <div>

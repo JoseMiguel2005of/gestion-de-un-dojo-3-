@@ -290,7 +290,6 @@ router.put('/config', async (req, res) => {
     const { 
       dia_corte, 
       descuento_pago_adelantado,
-      recargo_mora,
       moneda,
       metodos_pago,
       datos_bancarios,
@@ -304,7 +303,6 @@ router.put('/config', async (req, res) => {
     
     if (dia_corte !== undefined) updateData.dia_corte = dia_corte;
     if (descuento_pago_adelantado !== undefined) updateData.descuento_pago_adelantado = descuento_pago_adelantado;
-    if (recargo_mora !== undefined) updateData.recargo_mora = recargo_mora;
     if (moneda !== undefined) updateData.moneda = moneda;
     if (metodos_pago !== undefined) updateData.metodos_pago = typeof metodos_pago === 'string' ? metodos_pago : JSON.stringify(metodos_pago);
     if (datos_bancarios !== undefined) updateData.datos_bancarios = datos_bancarios;
