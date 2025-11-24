@@ -119,8 +119,8 @@ class ApiClient {
 
   async register(email: string, username: string, password: string, nombre_completo: string) {
     return this.request<{
-      token: string;
-      user: {
+      token?: string;
+      user?: {
         id: string;
         username: string;
         email: string;
@@ -128,6 +128,8 @@ class ApiClient {
         rol: string;
       };
       message: string;
+      email?: string;
+      requiresVerification?: boolean;
     }>('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ email, username, password, nombre_completo }),
@@ -178,6 +180,25 @@ class ApiClient {
     }>('/auth/verify-unlock-code', {
       method: 'POST',
       body: JSON.stringify({ email, unlockCode }),
+    });
+  }
+
+  async verifyEmail(email: string, code: string) {
+    return this.request<{
+      message: string;
+      verified: boolean;
+    }>('/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ email, code }),
+    });
+  }
+
+  async resendVerificationCode(email: string) {
+    return this.request<{
+      message: string;
+    }>('/auth/resend-verification-code', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
     });
   }
 

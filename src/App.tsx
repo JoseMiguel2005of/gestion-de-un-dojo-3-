@@ -20,6 +20,7 @@ import ConfiguracionAvanzada from "./pages/ConfiguracionAvanzada";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import UnlockAccount from "./pages/UnlockAccount";
+import VerifyEmail from "./pages/VerifyEmail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ const AppContent = () => {
             <Route path="/auth" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/unlock-account" element={<UnlockAccount />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
             <Route element={<Layout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/alumnos" element={<Alumnos />} />

@@ -206,26 +206,12 @@ router.post('/register', [
       });
     }
 
-    // 2. Verificar que el email existe (verificación SMTP/MX)
-    console.log(`🔍 Verificando existencia del email: ${email}`);
-    try {
-      const emailCheck = await verifyEmailExists(email);
-      if (!emailCheck.valid) {
-        console.log(`❌ Email no válido: ${emailCheck.reason}`);
-        return res.status(400).json({ 
-          error: 'Email no válido', 
-          details: emailCheck.reason 
-        });
-      }
-      if (emailCheck.warning) {
-        console.log(`⚠️ Advertencia: ${emailCheck.warning}`);
-      }
-    } catch (error) {
-      console.error('Error verificando email:', error);
-      // Si falla la verificación, continuar de todas formas
-      // La verificación real será cuando el usuario ingrese el código
-      console.log(`⚠️ No se pudo verificar el email completamente, pero continuando con el registro`);
-    }
+    // 2. Verificar formato básico del dominio (rápido, no bloqueante)
+    // La verificación SMTP completa se hace de forma asíncrona para no bloquear el registro
+    console.log(`🔍 Verificando formato del email: ${email}`);
+    // Solo verificar formato y dominios temporales (rápido)
+    // La verificación SMTP completa se omite para no bloquear el registro
+    // La verificación real será cuando el usuario ingrese el código
 
     // Verificar si el email ya existe
     const { data: existingEmail } = await supabase

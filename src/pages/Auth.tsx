@@ -221,17 +221,32 @@ const Auth = () => {
         validated.nombre_completo
       );
 
-      // Guardar token y usuario
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
-
-      toast({
-        title: isEnglish ? "Registration successful!" : "¡Registro exitoso!",
-        description: isEnglish ? "Your account has been created successfully" : "Tu cuenta ha sido creada correctamente",
-      });
-      
-      navigate("/");
-      window.location.reload(); // Recargar para actualizar el estado de autenticación
+      // Verificar si requiere verificación de email
+      if (response.requiresVerification) {
+        toast({
+          title: isEnglish ? "Registration successful!" : "¡Registro exitoso!",
+          description: isEnglish 
+            ? "Please verify your email to activate your account" 
+            : "Por favor, verifica tu email para activar tu cuenta",
+        });
+        
+        // Redirigir a la página de verificación de email
+        navigate(`/verify-email?email=${encodeURIComponent(validated.email)}`);
+      } else {
+        // Si no requiere verificación (caso antiguo), guardar token y redirigir
+        if (response.token && response.user) {
+          localStorage.setItem('token', response.token);
+          localStorage.setItem('user', JSON.stringify(response.user));
+        }
+        
+        toast({
+          title: isEnglish ? "Registration successful!" : "¡Registro exitoso!",
+          description: isEnglish ? "Your account has been created successfully" : "Tu cuenta ha sido creada correctamente",
+        });
+        
+        navigate("/");
+        window.location.reload();
+      }
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         toast({
