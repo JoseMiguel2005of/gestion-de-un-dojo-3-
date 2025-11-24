@@ -79,6 +79,7 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda, alumnoId }
   const [loading, setLoading] = useState(false);
   const [esPagoAdelantado, setEsPagoAdelantado] = useState(false);
   const [montoConDescuento, setMontoConDescuento] = useState(montoPagar);
+  const [descuentoInfo, setDescuentoInfo] = useState<{ porcentaje: number; precioOriginal: number; precioFinal: number } | null>(null);
   const { isEnglish } = useLanguage();
 
   useEffect(() => {
@@ -234,12 +235,25 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda, alumnoId }
               setMontoConDescuento(precioInfo.precio_final);
               // Actualizar el valor del campo monto
               setValue('monto', String(precioInfo.precio_final));
+              
+              // Guardar información del descuento para mostrarla al usuario
+              if (precioInfo.descuento_pago_adelantado && precioInfo.descuento_pago_adelantado > 0) {
+                setDescuentoInfo({
+                  porcentaje: precioInfo.descuento_pago_adelantado,
+                  precioOriginal: precioInfo.precio_base + (precioInfo.costo_inscripcion || 0),
+                  precioFinal: precioInfo.precio_final
+                });
+              } else {
+                setDescuentoInfo(null);
+              }
             }
           } catch (error) {
             console.error('Error obteniendo precio con descuento:', error);
+            setDescuentoInfo(null);
           }
         } else {
           setMontoConDescuento(montoPagar);
+          setDescuentoInfo(null);
         }
       } catch (error) {
         console.error('Error verificando pagos existentes:', error);
@@ -430,19 +444,46 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda, alumnoId }
 
       <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-4">
         <p className="text-lg font-semibold text-green-900 dark:text-green-100">
-          {getTranslation('paymentVerification.amountToPay', isEnglish)} <span className="text-2xl">${montoPagar}</span>
+          {getTranslation('paymentVerification.amountToPay', isEnglish)} <span className="text-2xl">${montoConDescuento.toFixed(2)}</span>
         </p>
         {esPagoAdelantado && (
-          <div className="mt-2 p-3 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 rounded">
-            <p className="text-sm text-blue-800 dark:text-blue-200 font-medium mb-1">
+          <div className="mt-3 p-3 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 rounded">
+            <p className="text-sm text-blue-800 dark:text-blue-200 font-medium mb-2">
               💡 <strong>{isEnglish ? "Advance Payment Detected" : "Pago Adelantado Detectado"}</strong>
             </p>
-            <p className="text-sm text-blue-700 dark:text-blue-300">
+            <p className="text-sm text-blue-700 dark:text-blue-300 mb-2">
               {isEnglish 
                 ? "Since you have already paid and confirmed the current month, this payment will be registered for next month."
                 : "Como ya has pagado y confirmado el mes actual, este pago se registrará para el próximo mes."
               }
             </p>
+            {descuentoInfo && descuentoInfo.porcentaje > 0 && (
+              <div className="mt-3 p-3 bg-green-100 dark:bg-green-900/40 border border-green-300 dark:border-green-700 rounded">
+                <p className="text-sm font-semibold text-green-900 dark:text-green-100 mb-2">
+                  🎉 {isEnglish ? "Early Payment Discount Applied!" : "¡Descuento por Pago Adelantado Aplicado!"}
+                </p>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between text-green-800 dark:text-green-200">
+                    <span>{isEnglish ? "Original Amount:" : "Monto Original:"}</span>
+                    <span className="line-through">${descuentoInfo.precioOriginal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-green-800 dark:text-green-200">
+                    <span>{isEnglish ? "Discount:" : "Descuento:"}</span>
+                    <span className="font-semibold text-green-700 dark:text-green-300">-{descuentoInfo.porcentaje}%</span>
+                  </div>
+                  <div className="flex justify-between text-green-900 dark:text-green-100 font-bold text-base pt-1 border-t border-green-300 dark:border-green-700">
+                    <span>{isEnglish ? "Final Amount:" : "Monto Final:"}</span>
+                    <span className="text-green-700 dark:text-green-300">${descuentoInfo.precioFinal.toFixed(2)}</span>
+                  </div>
+                  <p className="text-xs text-green-700 dark:text-green-400 mt-2 italic">
+                    {isEnglish 
+                      ? `You saved $${(descuentoInfo.precioOriginal - descuentoInfo.precioFinal).toFixed(2)}!`
+                      : `¡Ahorraste $${(descuentoInfo.precioOriginal - descuentoInfo.precioFinal).toFixed(2)}!`
+                    }
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
