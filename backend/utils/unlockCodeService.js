@@ -57,35 +57,21 @@ const getOrCreateLockRecord = async (usuarioId) => {
 
 /**
  * Incrementa el contador de intentos fallidos
- * Los intentos se resetean después de 5 minutos de inactividad
- * Esto evita que se acumulen intentos de sesiones anteriores
+ * Los intentos se acumulan entre sesiones (no se resetean automáticamente)
+ * Solo se resetean cuando el usuario hace login exitoso
  */
 export const incrementFailedAttempts = async (usuarioId) => {
   console.log(`🔐 Incrementando intentos fallidos para usuario ID: ${usuarioId}`);
   const lockRecord = await getOrCreateLockRecord(usuarioId);
   
-  // Verificar si han pasado más de 2 minutos desde el último intento
-  // Si es así, resetear los intentos (no acumular de sesiones anteriores)
-  // Esto asegura que solo se cuenten intentos de la misma sesión
-  const RESET_WINDOW_MINUTES = 2;
-  let intentosActuales = lockRecord.intentos_fallidos || 0;
-  
-  if (lockRecord.updated_at) {
-    const lastAttempt = new Date(lockRecord.updated_at);
-    const now = new Date();
-    const minutesSinceLastAttempt = (now - lastAttempt) / (1000 * 60);
-    
-    if (minutesSinceLastAttempt > RESET_WINDOW_MINUTES) {
-      console.log(`   Han pasado ${Math.round(minutesSinceLastAttempt)} minutos desde el último intento. Reseteando contador (no acumular de sesiones anteriores).`);
-      intentosActuales = 0;
-    }
-  }
-  
+  // Los intentos se acumulan sin importar el tiempo transcurrido
+  // Solo se resetean con login exitoso o desbloqueo manual
+  const intentosActuales = lockRecord.intentos_fallidos || 0;
   const nuevosIntentos = intentosActuales + 1;
   const MAX_ATTEMPTS = 3;
   
   console.log(`   Intentos actuales: ${nuevosIntentos}/${MAX_ATTEMPTS}`);
-  console.log(`   Último intento: ${lockRecord.updated_at || 'Nunca'}`);
+  console.log(`   Intentos previos acumulados: ${intentosActuales}`);
   
   // Actualizar intentos fallidos
   const { error: updateError } = await supabase
