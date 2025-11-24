@@ -272,9 +272,12 @@ router.put('/cambiar-idioma-global', [
     const { idioma_preferido } = req.body;
 
     // Actualizar idioma de TODOS los usuarios
+    // Usamos una condición que siempre sea verdadera para actualizar todos los registros
+    // .neq('id', -999999) es una condición que siempre será verdadera para IDs válidos (nunca habrá un ID -999999)
     const { data, error } = await supabase
       .from('usuario')
       .update({ idioma_preferido })
+      .neq('id', -999999) // Condición que siempre es verdadera para IDs válidos
       .select('id');
 
     if (error) {
