@@ -57,15 +57,46 @@ export default function Reportes() {
 
   const fetchAlumnosPorNivel = async () => {
     try {
-      const niveles = await apiClient.getNiveles();
-      const alumnos = await apiClient.getAlumnos();
+      const [categoriasEdad, cintas, alumnos] = await Promise.all([
+        apiClient.getCategoriasEdad(),
+        apiClient.getCintas(),
+        apiClient.getAlumnos()
+      ]);
       
-      const nivelesConConteo = niveles.map(nivel => {
-        const count = alumnos.filter(alumno => alumno.id_categoria_edad === nivel.id && alumno.estado === 1).length;
-        return { ...nivel, cantidad: count };
+      // Crear combinaciones de categoría de edad y cinta
+      const combinaciones: any[] = [];
+      
+      categoriasEdad.forEach((categoria: any) => {
+        cintas.forEach((cinta: any) => {
+          combinaciones.push({
+            id: `${categoria.id}_${cinta.id}`,
+            nivel: categoria.nombre,
+            cinta: cinta.nombre,
+            id_categoria_edad: categoria.id,
+            id_cinta: cinta.id,
+            cantidad: 0
+          });
+        });
       });
       
-      setAlumnosPorNivel(nivelesConConteo);
+      // Contar alumnos por combinación de categoría y cinta
+      const alumnosActivos = alumnos.filter((alumno: any) => {
+        // El estado puede ser true/false (booleano) o 1/0 (número)
+        return alumno.estado === true || alumno.estado === 1;
+      });
+      
+      combinaciones.forEach(combinacion => {
+        const count = alumnosActivos.filter((alumno: any) => 
+          alumno.id_categoria_edad === combinacion.id_categoria_edad &&
+          alumno.id_cinta === combinacion.id_cinta
+        ).length;
+        combinacion.cantidad = count;
+      });
+      
+      // Filtrar solo las combinaciones que tienen alumnos
+      const combinacionesConAlumnos = combinaciones.filter(c => c.cantidad > 0);
+      
+      setAlumnosPorNivel(combinacionesConAlumnos);
     } catch (error) {
       console.error('Error cargando alumnos por nivel:', error);
     }
@@ -87,9 +118,13 @@ export default function Reportes() {
     try {
       setCategoriaSeleccionada(categoria);
       const alumnos = await apiClient.getAlumnos();
-      const alumnosEnCategoria = alumnos.filter(alumno => 
-        alumno.id_categoria_edad === categoria.id && alumno.estado === 1
-      );
+      const alumnosEnCategoria = alumnos.filter((alumno: any) => {
+        // El estado puede ser true/false (booleano) o 1/0 (número)
+        const estadoActivo = alumno.estado === true || alumno.estado === 1;
+        return estadoActivo &&
+          alumno.id_categoria_edad === categoria.id_categoria_edad &&
+          alumno.id_cinta === categoria.id_cinta;
+      });
       setAlumnosEnCategoria(alumnosEnCategoria);
       setModalAbierto(true);
     } catch (error) {
