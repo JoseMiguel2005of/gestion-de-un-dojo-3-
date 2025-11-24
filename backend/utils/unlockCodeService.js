@@ -150,20 +150,21 @@ const blockAccount = async (usuarioId) => {
     
     console.log(`✅ Cuenta bloqueada y código guardado en BD`);
 
-    // Enviar código por correo
+    // Enviar código por correo (no crítico - la cuenta ya está bloqueada)
     try {
       console.log(`📧 Intentando enviar código de desbloqueo a: ${user.email}`);
       await sendUnlockCodeEmail(user.email, unlockCode, user.username || 'Usuario');
       console.log(`✅ Código de desbloqueo enviado exitosamente a: ${user.email}`);
     } catch (emailError) {
-      console.error('❌ ERROR CRÍTICO al enviar código de desbloqueo:');
+      // NO lanzar error aquí - la cuenta ya está bloqueada, que es lo importante
+      // Solo loguear el error para diagnóstico
+      console.error('⚠️ ADVERTENCIA: No se pudo enviar el correo de desbloqueo:');
       console.error('   Email del usuario:', user.email);
       console.error('   Código generado:', unlockCode);
       console.error('   Error:', emailError.message);
       console.error('   Stack:', emailError.stack);
-      // Lanzar el error para que se propague y se pueda ver en los logs de Vercel
-      // La cuenta ya está bloqueada y el código está guardado, pero necesitamos saber por qué falló el correo
-      throw new Error(`Error enviando correo: ${emailError.message}`);
+      console.error('   NOTA: La cuenta está bloqueada. El usuario puede solicitar reenvío del código.');
+      // La cuenta está bloqueada, que es lo importante. El correo es secundario.
     }
   } catch (error) {
     console.error('Error en blockAccount:', error);

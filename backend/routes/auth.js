@@ -88,9 +88,11 @@ router.post('/login', [
       // Incrementar intentos fallidos
       try {
         const attemptResult = await incrementFailedAttempts(user.id);
+        console.log(`📊 Resultado de incremento de intentos:`, attemptResult);
         
         if (attemptResult.blocked) {
-          // La cuenta fue bloqueada, pero puede que el correo no se haya enviado
+          console.log(`🔒 Cuenta bloqueada después de ${attemptResult.attempts} intentos fallidos`);
+          // La cuenta fue bloqueada
           // El código de desbloqueo está guardado en la BD, así que el usuario puede solicitar reenvío
           return res.status(403).json({ 
             error: 'Cuenta bloqueada',
@@ -99,6 +101,7 @@ router.post('/login', [
           });
         }
         
+        console.log(`⚠️ Intentos fallidos: ${attemptResult.attempts}, Restantes: ${attemptResult.remaining}`);
         return res.status(401).json({ 
           error: 'Credenciales inválidas',
           attempts: attemptResult.attempts,
@@ -112,8 +115,7 @@ router.post('/login', [
         if (error.cause) {
           console.error('   Causa:', error.cause);
         }
-        // Si falla el bloqueo (probablemente por error al enviar correo), 
-        // aún así devolver un error de credenciales para no exponer el problema interno
+        // Si falla el incremento de intentos, aún así devolver un error de credenciales
         // Pero loguear el error completo para diagnóstico
         return res.status(401).json({ 
           error: 'Credenciales inválidas',
@@ -649,12 +651,19 @@ router.get('/verify', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // Verificar que el usuario aún existe y está activo
-    const users = await executeQuery(
-      'SELECT id, username, nombre_completo, rol, idioma_preferido FROM usuario WHERE id = ? AND estado = 1',
-      [decoded.id]
-    );
+    const { data: users, error: userError } = await supabase
+      .from('usuario')
+      .select('id, username, nombre_completo, rol, idioma_preferido')
+      .eq('id', decoded.id)
+      .eq('estado', true)
+      .limit(1);
 
-    if (users.length === 0) {
+    if (userError) {
+      console.error('Error verificando usuario:', userError);
+      return res.status(401).json({ error: 'Token inválido' });
+    }
+
+    if (!users || users.length === 0) {
       return res.status(401).json({ error: 'Usuario no encontrado' });
     }
 
