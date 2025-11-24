@@ -7,6 +7,7 @@ import { generateToken } from '../middleware/auth.js';
 import { registrarLog, LogActions, LogModules } from '../utils/logger.js';
 import { body, validationResult } from 'express-validator';
 import { sendPasswordResetEmail, sendEmailVerificationCode } from '../utils/emailService.js';
+import { verifyEmailFormat, verifyEmailExists } from '../utils/emailVerification.js';
 import { 
   incrementFailedAttempts, 
   resetFailedAttempts, 
@@ -193,6 +194,38 @@ router.post('/register', [
     }
 
     const { email, username, password, nombre_completo } = req.body;
+
+    // 1. Verificar formato del email y rechazar emails temporales
+    console.log(`🔍 Verificando formato del email: ${email}`);
+    const formatCheck = verifyEmailFormat(email);
+    if (!formatCheck.valid) {
+      console.log(`❌ Email rechazado por formato: ${formatCheck.reason}`);
+      return res.status(400).json({ 
+        error: 'Email inválido', 
+        details: formatCheck.reason 
+      });
+    }
+
+    // 2. Verificar que el email existe (verificación SMTP/MX)
+    console.log(`🔍 Verificando existencia del email: ${email}`);
+    try {
+      const emailCheck = await verifyEmailExists(email);
+      if (!emailCheck.valid) {
+        console.log(`❌ Email no válido: ${emailCheck.reason}`);
+        return res.status(400).json({ 
+          error: 'Email no válido', 
+          details: emailCheck.reason 
+        });
+      }
+      if (emailCheck.warning) {
+        console.log(`⚠️ Advertencia: ${emailCheck.warning}`);
+      }
+    } catch (error) {
+      console.error('Error verificando email:', error);
+      // Si falla la verificación, continuar de todas formas
+      // La verificación real será cuando el usuario ingrese el código
+      console.log(`⚠️ No se pudo verificar el email completamente, pero continuando con el registro`);
+    }
 
     // Verificar si el email ya existe
     const { data: existingEmail } = await supabase
