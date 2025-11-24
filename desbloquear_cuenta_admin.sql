@@ -1,31 +1,17 @@
--- Script para desbloquear la cuenta de Admin@gmail.com
--- Ejecutar este script en Supabase SQL Editor
+-- ============================================
+-- SCRIPT COMPLETO PARA DESBLOQUEAR ADMIN
+-- ============================================
+-- Ejecutar TODO este script en Supabase SQL Editor
+-- Esto desbloqueará completamente la cuenta de Admin@gmail.com
 
--- 1. Buscar el ID del usuario Admin@gmail.com
-SELECT id, username, email, estado 
-FROM usuario 
-WHERE email = 'Admin@gmail.com' OR email = 'admin@gmail.com';
-
--- 2. Desbloquear la cuenta (reemplaza USER_ID con el ID obtenido arriba)
--- Si no conoces el ID, puedes usar este query que lo busca automáticamente:
-UPDATE account_lock
-SET 
-  bloqueado = false,
-  bloqueado_desde = NULL,
-  intentos_fallidos = 0,
-  codigo_desbloqueo = NULL,
-  codigo_expires_at = NULL,
-  codigo_used = false,
-  updated_at = NOW()
-WHERE usuario_id IN (
-  SELECT id FROM usuario 
-  WHERE LOWER(email) = LOWER('Admin@gmail.com')
-);
-
--- 3. Verificar que se desbloqueó correctamente
+-- PASO 1: Verificar estado actual
 SELECT 
+  u.id,
   u.email,
   u.username,
+  u.estado,
+  u.activo,
+  u.email_verificado,
   al.bloqueado,
   al.intentos_fallidos,
   al.bloqueado_desde
@@ -33,10 +19,53 @@ FROM usuario u
 LEFT JOIN account_lock al ON u.id = al.usuario_id
 WHERE LOWER(u.email) = LOWER('Admin@gmail.com');
 
--- 4. Si no existe registro en account_lock, crear uno limpio (opcional)
-INSERT INTO account_lock (usuario_id, intentos_fallidos, bloqueado)
-SELECT id, 0, false
+-- PASO 2: Eliminar cualquier registro de bloqueo existente y crear uno nuevo limpio
+-- Primero eliminar si existe
+DELETE FROM account_lock
+WHERE usuario_id IN (
+  SELECT id FROM usuario 
+  WHERE LOWER(email) = LOWER('Admin@gmail.com')
+);
+
+-- Luego crear registro limpio
+INSERT INTO account_lock (usuario_id, intentos_fallidos, bloqueado, bloqueado_desde, codigo_desbloqueo, codigo_expires_at, codigo_used, created_at, updated_at)
+SELECT 
+  id, 
+  0, 
+  false, 
+  NULL, 
+  NULL, 
+  NULL, 
+  false,
+  NOW(),
+  NOW()
 FROM usuario
-WHERE LOWER(email) = LOWER('Admin@gmail.com')
-ON CONFLICT (usuario_id) DO NOTHING;
+WHERE LOWER(email) = LOWER('Admin@gmail.com');
+
+-- PASO 3: Asegurar que el usuario esté completamente activo y verificado
+UPDATE usuario
+SET 
+  estado = true,
+  activo = true,
+  email_verificado = COALESCE(email_verificado, true)
+WHERE LOWER(email) = LOWER('Admin@gmail.com');
+
+-- PASO 4: Verificar resultado final (debe mostrar bloqueado = false)
+SELECT 
+  u.id,
+  u.email,
+  u.username,
+  u.estado as usuario_activo,
+  u.activo,
+  u.email_verificado,
+  al.bloqueado as cuenta_bloqueada,
+  al.intentos_fallidos,
+  al.bloqueado_desde,
+  al.updated_at as ultima_actualizacion
+FROM usuario u
+LEFT JOIN account_lock al ON u.id = al.usuario_id
+WHERE LOWER(u.email) = LOWER('Admin@gmail.com');
+
+-- Si bloqueado sigue siendo true, ejecutar esto manualmente:
+-- UPDATE account_lock SET bloqueado = false WHERE usuario_id = (SELECT id FROM usuario WHERE LOWER(email) = LOWER('Admin@gmail.com'));
 
