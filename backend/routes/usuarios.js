@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import supabase from '../utils/supabaseClient.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { body, validationResult } from 'express-validator';
+import { unlockAccount } from '../utils/unlockCodeService.js';
 
 const router = express.Router();
 
@@ -468,6 +469,90 @@ router.delete('/logs/cleanup', async (req, res) => {
     });
   } catch (error) {
     console.error('Error limpiando logs:', error);
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
+  }
+});
+
+// Desbloquear cuenta de usuario (solo admin)
+router.post('/:id/unlock', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = parseInt(id);
+
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'ID de usuario inválido' });
+    }
+
+    // Verificar que el usuario que hace la petición es admin
+    const requestingUser = req.user;
+    if (!requestingUser || requestingUser.rol !== 'admin') {
+      return res.status(403).json({ error: 'Solo los administradores pueden desbloquear cuentas' });
+    }
+
+    // Verificar que el usuario existe
+    const { data: user, error: userError } = await supabase
+      .from('usuario')
+      .select('id, username, email')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    // Desbloquear la cuenta
+    await unlockAccount(userId);
+
+    res.json({
+      message: `Cuenta de ${user.username} (${user.email}) desbloqueada exitosamente`,
+      success: true
+    });
+  } catch (error) {
+    console.error('Error desbloqueando cuenta:', error);
+    res.status(500).json({ error: 'Error interno del servidor', details: error.message });
+  }
+});
+
+// Desbloquear cuenta por email (solo admin)
+router.post('/unlock-by-email', [
+  body('email').notEmpty().withMessage('Email es requerido')
+    .isEmail().withMessage('Email debe ser válido')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    // Verificar que el usuario que hace la petición es admin
+    const requestingUser = req.user;
+    if (!requestingUser || requestingUser.rol !== 'admin') {
+      return res.status(403).json({ error: 'Solo los administradores pueden desbloquear cuentas' });
+    }
+
+    const { email } = req.body;
+
+    // Buscar usuario por email
+    const { data: user, error: userError } = await supabase
+      .from('usuario')
+      .select('id, username, email')
+      .eq('email', email)
+      .limit(1)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    // Desbloquear la cuenta
+    await unlockAccount(user.id);
+
+    res.json({
+      message: `Cuenta de ${user.username} (${user.email}) desbloqueada exitosamente`,
+      success: true
+    });
+  } catch (error) {
+    console.error('Error desbloqueando cuenta:', error);
     res.status(500).json({ error: 'Error interno del servidor', details: error.message });
   }
 });

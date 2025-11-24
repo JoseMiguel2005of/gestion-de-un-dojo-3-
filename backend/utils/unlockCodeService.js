@@ -198,6 +198,51 @@ export const resetFailedAttempts = async (usuarioId) => {
 };
 
 /**
+ * Desbloquea una cuenta manualmente (para administradores)
+ */
+export const unlockAccount = async (usuarioId) => {
+  console.log(`🔓 Desbloqueando cuenta manualmente para usuario ID: ${usuarioId}`);
+  
+  const { error, data } = await supabase
+    .from('account_lock')
+    .update({
+      bloqueado: false,
+      bloqueado_desde: null,
+      intentos_fallidos: 0,
+      codigo_desbloqueo: null,
+      codigo_expires_at: null,
+      codigo_used: false,
+      updated_at: new Date().toISOString()
+    })
+    .eq('usuario_id', usuarioId)
+    .select();
+
+  if (error) {
+    console.error('Error desbloqueando cuenta:', error);
+    throw error;
+  }
+
+  // Si no existe registro, crear uno limpio
+  if (!data || data.length === 0) {
+    const { error: insertError } = await supabase
+      .from('account_lock')
+      .insert({
+        usuario_id: usuarioId,
+        intentos_fallidos: 0,
+        bloqueado: false
+      });
+
+    if (insertError) {
+      console.error('Error creando registro de bloqueo:', insertError);
+      throw insertError;
+    }
+  }
+
+  console.log(`✅ Cuenta desbloqueada exitosamente para usuario ID: ${usuarioId}`);
+  return { success: true };
+};
+
+/**
  * Verifica si una cuenta está bloqueada
  */
 export const isAccountLocked = async (usuarioId) => {
