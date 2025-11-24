@@ -204,6 +204,108 @@ export const verifyEmailConfig = async () => {
  * @param {string} unlockCode - Código de 6 dígitos para desbloquear
  * @param {string} username - Nombre de usuario
  */
+/**
+ * Envía un correo con código de verificación de email
+ * @param {string} to - Dirección de correo del destinatario
+ * @param {string} verificationCode - Código de verificación de 6 dígitos
+ * @param {string} username - Nombre de usuario
+ */
+export const sendEmailVerificationCode = async (to, verificationCode, username) => {
+  try {
+    console.log(`📨 Intentando enviar código de verificación a: ${to}`);
+    
+    const mailOptions = {
+      from: `"Dojo de Judo" <${emailUser}>`,
+      to: to,
+      subject: 'Verifica tu correo electrónico - Dojo de Judo',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            .container {
+              background-color: #f9f9f9;
+              border-radius: 10px;
+              padding: 30px;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 30px;
+            }
+            .code-box {
+              background-color: #fff;
+              border: 2px solid #d97706;
+              border-radius: 8px;
+              padding: 20px;
+              text-align: center;
+              margin: 30px 0;
+              font-size: 32px;
+              font-weight: bold;
+              color: #d97706;
+              letter-spacing: 8px;
+            }
+            .footer {
+              margin-top: 30px;
+              padding-top: 20px;
+              border-top: 1px solid #ddd;
+              font-size: 12px;
+              color: #666;
+              text-align: center;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1 style="color: #d97706;">Dojo de Judo</h1>
+              <h2>Verificación de Correo Electrónico</h2>
+            </div>
+            
+            <p>Hola <strong>${username}</strong>,</p>
+            
+            <p>Gracias por registrarte en nuestro sistema de gestión. Para completar tu registro, por favor verifica tu correo electrónico usando el siguiente código:</p>
+            
+            <div class="code-box">
+              ${verificationCode}
+            </div>
+            
+            <p>Este código es válido por <strong>30 minutos</strong>.</p>
+            
+            <p>Si no solicitaste este código, puedes ignorar este correo.</p>
+            
+            <div class="footer">
+              <p>Este es un correo automático, por favor no respondas.</p>
+              <p>&copy; ${new Date().getFullYear()} Dojo de Judo. Todos los derechos reservados.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Código de verificación enviado exitosamente a: ${to}`);
+    console.log(`   Message ID: ${info.messageId}`);
+    return info;
+  } catch (error) {
+    console.error('❌ ERROR enviando código de verificación:');
+    console.error('   Email destino:', to);
+    console.error('   Error:', error.message);
+    console.error('   Stack:', error.stack);
+    throw error;
+  }
+};
+
 export const sendUnlockCodeEmail = async (to, unlockCode, username) => {
   if (!emailUser || !emailPass) {
     console.error('❌ No se puede enviar código de desbloqueo: EMAIL_USER o EMAIL_PASS no configurados.');

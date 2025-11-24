@@ -6,14 +6,12 @@ import supabase from '../utils/supabaseClient.js';
 import { generateToken } from '../middleware/auth.js';
 import { registrarLog, LogActions, LogModules } from '../utils/logger.js';
 import { body, validationResult } from 'express-validator';
-import { sendPasswordResetEmail } from '../utils/emailService.js';
+import { sendPasswordResetEmail, sendEmailVerificationCode } from '../utils/emailService.js';
 import { 
   incrementFailedAttempts, 
   resetFailedAttempts, 
   isAccountLocked, 
-  verifyUnlockCode,
-  incrementFailedAttemptsByEmail,
-  isEmailLocked
+  verifyUnlockCode 
 } from '../utils/unlockCodeService.js';
 
 const router = express.Router();
@@ -33,26 +31,11 @@ router.post('/login', [
 
     console.log('🔍 Intento de login con email:', email);
 
-    // PRIMERO: Verificar si el email está bloqueado (incluso si el usuario no existe)
-    console.log('🔍 Verificando bloqueo por email antes de buscar usuario...');
-    const emailLockStatus = await isEmailLocked(email);
-    console.log('📊 Estado de bloqueo por email:', emailLockStatus);
-    
-    if (emailLockStatus.locked) {
-      console.log(`🔒 EMAIL BLOQUEADO: ${email} está bloqueado después de ${emailLockStatus.attempts} intentos fallidos`);
-      return res.status(403).json({ 
-        error: 'Acceso bloqueado',
-        locked: true,
-        message: 'Se han detectado múltiples intentos fallidos con este email. Por favor, espera unos minutos antes de intentar nuevamente.' 
-      });
-    }
-
     const { data: users, error: userError } = await supabase
       .from('usuario')
-      .select('id, username, email, password_hash, nombre_completo, rol, estado, idioma_preferido')
+      .select('id, username, email, password_hash, nombre_completo, rol, estado, idioma_preferido, email_verificado')
       .eq('email', email)
-      .eq('estado', true)
-      .limit(1);
+      .limit(1); // No filtrar por estado aquí, lo verificamos después
 
     if (userError) {
       console.error('Error consultando usuario:', userError);
@@ -61,31 +44,21 @@ router.post('/login', [
 
     if (!users || users.length === 0) {
       console.log('❌ Usuario no encontrado:', email);
-      // Incrementar intentos fallidos por email (aunque el usuario no exista)
-      try {
-        const emailAttemptResult = await incrementFailedAttemptsByEmail(email);
-        console.log(`📊 Resultado de incremento de intentos por email:`, emailAttemptResult);
-        
-        if (emailAttemptResult.blocked) {
-          console.log(`🔒 Email bloqueado después de ${emailAttemptResult.attempts} intentos fallidos`);
-          return res.status(403).json({ 
-            error: 'Acceso bloqueado',
-            locked: true,
-            message: 'Se han detectado múltiples intentos fallidos con este email. Por favor, espera unos minutos antes de intentar nuevamente.' 
-          });
-        }
-        
-        // No revelar si el email existe o no por seguridad
-        return res.status(401).json({ error: 'Credenciales inválidas' });
-      } catch (error) {
-        console.error('Error procesando intentos fallidos por email:', error);
-        // En caso de error, solo devolver credenciales inválidas
-        return res.status(401).json({ error: 'Credenciales inválidas' });
-      }
+      return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
     const user = users[0];
     console.log('✅ Usuario encontrado:', user.username, '| Rol:', user.rol, '| ID:', user.id);
+
+    // Verificar si el email está verificado
+    if (!user.email_verificado) {
+      console.log('⚠️ Email no verificado para usuario:', user.username);
+      return res.status(403).json({ 
+        error: 'Email no verificado',
+        requiresVerification: true,
+        message: 'Por favor, verifica tu correo electrónico antes de iniciar sesión. Revisa tu bandeja de entrada para el código de verificación.' 
+      });
+    }
 
     // Verificar si la cuenta está bloqueada
     console.log('🔍 Verificando estado de bloqueo antes de verificar contraseña...');
@@ -245,7 +218,16 @@ router.post('/register', [
 
     const password_hash = await bcrypt.hash(password, 10);
 
-    // Insertar nuevo usuario
+    // Generar código de verificación de 6 dígitos
+    const verificationCode = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 30); // Válido por 30 minutos
+
+    console.log(`📧 Generando código de verificación para: ${email}`);
+    console.log(`   Código: ${verificationCode}`);
+    console.log(`   Expira en: ${expiresAt.toISOString()}`);
+
+    // Insertar nuevo usuario (con email NO verificado)
     const { data: newUserData, error: insertError } = await supabase
       .from('usuario')
       .insert({
@@ -254,10 +236,11 @@ router.post('/register', [
         password_hash,
         nombre_completo,
         rol: 'usuario',
-        estado: true,
-        activo: true
+        estado: false, // No activo hasta verificar email
+        activo: false,
+        email_verificado: false
       })
-      .select('id, username, email, nombre_completo, rol')
+      .select('id, username, email, nombre_completo, rol, email_verificado')
       .single();
 
     if (insertError) {
@@ -265,20 +248,38 @@ router.post('/register', [
       return res.status(500).json({ error: 'Error interno del servidor', details: insertError.message });
     }
 
-    const newUser = {
-      id: newUserData.id,
-      username: newUserData.username,
-      email: newUserData.email,
-      nombre_completo: newUserData.nombre_completo,
-      rol: newUserData.rol
-    };
+    // Guardar código de verificación en la base de datos
+    const { error: codeError } = await supabase
+      .from('email_verification_codes')
+      .insert({
+        usuario_id: newUserData.id,
+        codigo: verificationCode,
+        expires_at: expiresAt.toISOString(),
+        used: false
+      });
 
-    const token = generateToken(newUser);
+    if (codeError) {
+      console.error('Error guardando código de verificación:', codeError);
+      // Intentar eliminar el usuario creado
+      await supabase.from('usuario').delete().eq('id', newUserData.id);
+      return res.status(500).json({ error: 'Error interno del servidor', details: codeError.message });
+    }
+
+    // Enviar código de verificación por correo
+    try {
+      console.log(`📧 Enviando código de verificación a: ${email}`);
+      await sendEmailVerificationCode(email, verificationCode, username);
+      console.log(`✅ Código de verificación enviado exitosamente`);
+    } catch (emailError) {
+      console.error('⚠️ Error enviando correo de verificación:', emailError);
+      // No fallar el registro si falla el correo, pero loguear el error
+      // El código está guardado en BD, el usuario puede solicitar reenvío
+    }
 
     res.status(201).json({
-      token,
-      user: newUser,
-      message: 'Usuario registrado exitosamente'
+      message: 'Usuario registrado exitosamente. Por favor, verifica tu correo electrónico para activar tu cuenta.',
+      email: email,
+      requiresVerification: true
     });
   } catch (error) {
     console.error('Error en registro:', error);
@@ -679,6 +680,189 @@ router.post('/verify-unlock-code', [
     });
   } catch (error) {
     console.error('Error verificando código de desbloqueo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Verificar código de email
+router.post('/verify-email', [
+  body('email').notEmpty().withMessage('Email es requerido')
+    .isEmail().withMessage('Email debe ser válido'),
+  body('code').notEmpty().withMessage('Código es requerido')
+    .isLength({ min: 6, max: 6 }).withMessage('Código debe tener 6 dígitos')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { email, code } = req.body;
+
+    // Buscar usuario por email
+    const { data: users, error: userError } = await supabase
+      .from('usuario')
+      .select('id, username, email, email_verificado')
+      .eq('email', email)
+      .limit(1);
+
+    if (userError) {
+      console.error('Error buscando usuario:', userError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: userError.message });
+    }
+
+    if (!users || users.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    const user = users[0];
+
+    // Si ya está verificado, retornar éxito
+    if (user.email_verificado) {
+      return res.json({
+        message: 'El email ya está verificado',
+        verified: true
+      });
+    }
+
+    // Buscar código de verificación
+    const { data: codes, error: codeError } = await supabase
+      .from('email_verification_codes')
+      .select('id, codigo, expires_at, used')
+      .eq('usuario_id', user.id)
+      .eq('used', false)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (codeError) {
+      console.error('Error buscando código:', codeError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: codeError.message });
+    }
+
+    if (!codes || codes.length === 0) {
+      return res.status(400).json({ error: 'Código no encontrado o ya usado' });
+    }
+
+    const codeRecord = codes[0];
+
+    // Verificar si el código expiró
+    const expiresAt = new Date(codeRecord.expires_at);
+    if (expiresAt < new Date()) {
+      return res.status(400).json({ error: 'El código ha expirado. Solicita uno nuevo.' });
+    }
+
+    // Verificar si el código coincide
+    if (codeRecord.codigo !== code) {
+      return res.status(400).json({ error: 'Código incorrecto' });
+    }
+
+    // Marcar código como usado y verificar email
+    const { error: updateError } = await supabase
+      .from('email_verification_codes')
+      .update({ used: true })
+      .eq('id', codeRecord.id);
+
+    if (updateError) {
+      console.error('Error marcando código como usado:', updateError);
+      // Continuar de todas formas
+    }
+
+    // Actualizar usuario: verificar email y activar cuenta
+    const { error: userUpdateError } = await supabase
+      .from('usuario')
+      .update({
+        email_verificado: true,
+        estado: true,
+        activo: true
+      })
+      .eq('id', user.id);
+
+    if (userUpdateError) {
+      console.error('Error verificando email:', userUpdateError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: userUpdateError.message });
+    }
+
+    res.json({
+      message: 'Email verificado exitosamente. Ya puedes iniciar sesión.',
+      verified: true
+    });
+  } catch (error) {
+    console.error('Error verificando email:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Reenviar código de verificación
+router.post('/resend-verification-code', [
+  body('email').notEmpty().withMessage('Email es requerido')
+    .isEmail().withMessage('Email debe ser válido')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { email } = req.body;
+
+    // Buscar usuario por email
+    const { data: users, error: userError } = await supabase
+      .from('usuario')
+      .select('id, username, email, email_verificado')
+      .eq('email', email)
+      .limit(1);
+
+    if (userError) {
+      console.error('Error buscando usuario:', userError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: userError.message });
+    }
+
+    if (!users || users.length === 0) {
+      return res.json({ 
+        message: 'Si el email existe y no está verificado, se reenviará el código' 
+      });
+    }
+
+    const user = users[0];
+
+    if (user.email_verificado) {
+      return res.json({ 
+        message: 'El email ya está verificado' 
+      });
+    }
+
+    // Generar nuevo código
+    const verificationCode = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 30);
+
+    // Guardar código
+    const { error: codeError } = await supabase
+      .from('email_verification_codes')
+      .insert({
+        usuario_id: user.id,
+        codigo: verificationCode,
+        expires_at: expiresAt.toISOString(),
+        used: false
+      });
+
+    if (codeError) {
+      console.error('Error guardando código:', codeError);
+      return res.status(500).json({ error: 'Error interno del servidor', details: codeError.message });
+    }
+
+    // Enviar código
+    try {
+      await sendEmailVerificationCode(user.email, verificationCode, user.username);
+      res.json({ 
+        message: 'Código de verificación reenviado exitosamente' 
+      });
+    } catch (emailError) {
+      console.error('Error enviando correo:', emailError);
+      res.status(500).json({ error: 'Error enviando correo', details: emailError.message });
+    }
+  } catch (error) {
+    console.error('Error reenviando código:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
