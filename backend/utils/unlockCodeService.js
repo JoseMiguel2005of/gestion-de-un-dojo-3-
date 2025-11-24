@@ -3,6 +3,144 @@ import supabase from './supabaseClient.js';
 import { sendUnlockCodeEmail } from './emailService.js';
 
 /**
+ * Obtiene o crea un registro de bloqueo por email (para usuarios que no existen)
+ */
+const getOrCreateEmailLockRecord = async (email) => {
+  const emailHash = crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
+  
+  let { data: lockRecord, error } = await supabase
+    .from('email_lock')
+    .select('*')
+    .eq('email_hash', emailHash)
+    .limit(1);
+
+  if (error) {
+    console.error('Error obteniendo email lock record:', error);
+    throw error;
+  }
+
+  if (!lockRecord || lockRecord.length === 0) {
+    const { error: insertError } = await supabase
+      .from('email_lock')
+      .insert({
+        email_hash: emailHash,
+        email: email.toLowerCase().trim(), // Guardar email original para logs
+        intentos_fallidos: 0,
+        bloqueado: false
+      });
+
+    if (insertError) {
+      console.error('Error creando email lock record:', insertError);
+      throw insertError;
+    }
+
+    const { data: newRecord, error: selectError } = await supabase
+      .from('email_lock')
+      .select('*')
+      .eq('email_hash', emailHash)
+      .limit(1);
+
+    if (selectError) {
+      console.error('Error obteniendo nuevo email lock record:', selectError);
+      throw selectError;
+    }
+
+    lockRecord = newRecord;
+  }
+
+  return lockRecord[0];
+};
+
+/**
+ * Incrementa intentos fallidos por email (para usuarios que no existen)
+ */
+export const incrementFailedAttemptsByEmail = async (email) => {
+  console.log(`🔐 Incrementando intentos fallidos por email: ${email}`);
+  try {
+    const lockRecord = await getOrCreateEmailLockRecord(email);
+    
+    const nuevosIntentos = (lockRecord.intentos_fallidos || 0) + 1;
+    const MAX_ATTEMPTS = 3;
+    
+    console.log(`   Intentos actuales por email: ${nuevosIntentos}/${MAX_ATTEMPTS}`);
+    
+    // Actualizar intentos fallidos
+    const { error: updateError } = await supabase
+      .from('email_lock')
+      .update({
+        intentos_fallidos: nuevosIntentos,
+        updated_at: new Date().toISOString()
+      })
+      .eq('email_hash', crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex'));
+
+    if (updateError) {
+      console.error('Error actualizando intentos fallidos por email:', updateError);
+      throw updateError;
+    }
+
+    // Si alcanza el límite, bloquear el email
+    if (nuevosIntentos >= MAX_ATTEMPTS) {
+      console.log(`⚠️ Límite de intentos alcanzado para email. Bloqueando: ${email}`);
+      const emailHash = crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
+      const { error: blockError } = await supabase
+        .from('email_lock')
+        .update({
+          bloqueado: true,
+          bloqueado_desde: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('email_hash', emailHash);
+
+      if (blockError) {
+        console.error('Error bloqueando email:', blockError);
+        throw blockError;
+      }
+      
+      console.log(`✅ Email bloqueado: ${email}`);
+      return { blocked: true, attempts: nuevosIntentos };
+    }
+
+    return { blocked: false, attempts: nuevosIntentos, remaining: MAX_ATTEMPTS - nuevosIntentos };
+  } catch (error) {
+    console.error('Error en incrementFailedAttemptsByEmail:', error);
+    // No lanzar error para no exponer problemas internos
+    return { blocked: false, attempts: 0, remaining: 3 };
+  }
+};
+
+/**
+ * Verifica si un email está bloqueado
+ */
+export const isEmailLocked = async (email) => {
+  const emailHash = crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
+  
+  const { data: lockRecord, error } = await supabase
+    .from('email_lock')
+    .select('bloqueado, bloqueado_desde, intentos_fallidos')
+    .eq('email_hash', emailHash)
+    .limit(1);
+
+  if (error) {
+    console.error('Error verificando bloqueo por email:', error);
+    return { locked: false };
+  }
+
+  if (!lockRecord || lockRecord.length === 0) {
+    return { locked: false };
+  }
+
+  const isLocked = lockRecord[0].bloqueado === true;
+  console.log(`   Estado de bloqueo por email: ${isLocked ? 'BLOQUEADO' : 'NO BLOQUEADO'}`);
+  console.log(`   Intentos fallidos: ${lockRecord[0].intentos_fallidos || 0}`);
+
+  return {
+    locked: isLocked,
+    lockedSince: lockRecord[0].bloqueado_desde,
+    attempts: lockRecord[0].intentos_fallidos || 0
+  };
+};
+
+/**
  * Genera un código de desbloqueo de 6 dígitos
  */
 const generateUnlockCode = () => {

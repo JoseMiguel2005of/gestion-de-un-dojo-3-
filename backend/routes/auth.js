@@ -11,7 +11,9 @@ import {
   incrementFailedAttempts, 
   resetFailedAttempts, 
   isAccountLocked, 
-  verifyUnlockCode 
+  verifyUnlockCode,
+  incrementFailedAttemptsByEmail,
+  isEmailLocked
 } from '../utils/unlockCodeService.js';
 
 const router = express.Router();
@@ -31,6 +33,20 @@ router.post('/login', [
 
     console.log('🔍 Intento de login con email:', email);
 
+    // PRIMERO: Verificar si el email está bloqueado (incluso si el usuario no existe)
+    console.log('🔍 Verificando bloqueo por email antes de buscar usuario...');
+    const emailLockStatus = await isEmailLocked(email);
+    console.log('📊 Estado de bloqueo por email:', emailLockStatus);
+    
+    if (emailLockStatus.locked) {
+      console.log(`🔒 EMAIL BLOQUEADO: ${email} está bloqueado después de ${emailLockStatus.attempts} intentos fallidos`);
+      return res.status(403).json({ 
+        error: 'Acceso bloqueado',
+        locked: true,
+        message: 'Se han detectado múltiples intentos fallidos con este email. Por favor, espera unos minutos antes de intentar nuevamente.' 
+      });
+    }
+
     const { data: users, error: userError } = await supabase
       .from('usuario')
       .select('id, username, email, password_hash, nombre_completo, rol, estado, idioma_preferido')
@@ -45,7 +61,27 @@ router.post('/login', [
 
     if (!users || users.length === 0) {
       console.log('❌ Usuario no encontrado:', email);
-      return res.status(401).json({ error: 'Credenciales inválidas' });
+      // Incrementar intentos fallidos por email (aunque el usuario no exista)
+      try {
+        const emailAttemptResult = await incrementFailedAttemptsByEmail(email);
+        console.log(`📊 Resultado de incremento de intentos por email:`, emailAttemptResult);
+        
+        if (emailAttemptResult.blocked) {
+          console.log(`🔒 Email bloqueado después de ${emailAttemptResult.attempts} intentos fallidos`);
+          return res.status(403).json({ 
+            error: 'Acceso bloqueado',
+            locked: true,
+            message: 'Se han detectado múltiples intentos fallidos con este email. Por favor, espera unos minutos antes de intentar nuevamente.' 
+          });
+        }
+        
+        // No revelar si el email existe o no por seguridad
+        return res.status(401).json({ error: 'Credenciales inválidas' });
+      } catch (error) {
+        console.error('Error procesando intentos fallidos por email:', error);
+        // En caso de error, solo devolver credenciales inválidas
+        return res.status(401).json({ error: 'Credenciales inválidas' });
+      }
     }
 
     const user = users[0];
