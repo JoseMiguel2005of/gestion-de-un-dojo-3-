@@ -57,15 +57,33 @@ const getOrCreateLockRecord = async (usuarioId) => {
 
 /**
  * Incrementa el contador de intentos fallidos
+ * Los intentos se resetean después de 15 minutos de inactividad
  */
 export const incrementFailedAttempts = async (usuarioId) => {
   console.log(`🔐 Incrementando intentos fallidos para usuario ID: ${usuarioId}`);
   const lockRecord = await getOrCreateLockRecord(usuarioId);
   
-  const nuevosIntentos = (lockRecord.intentos_fallidos || 0) + 1;
+  // Verificar si han pasado más de 15 minutos desde el último intento
+  // Si es así, resetear los intentos
+  const RESET_WINDOW_MINUTES = 15;
+  let intentosActuales = lockRecord.intentos_fallidos || 0;
+  
+  if (lockRecord.updated_at) {
+    const lastAttempt = new Date(lockRecord.updated_at);
+    const now = new Date();
+    const minutesSinceLastAttempt = (now - lastAttempt) / (1000 * 60);
+    
+    if (minutesSinceLastAttempt > RESET_WINDOW_MINUTES) {
+      console.log(`   Han pasado ${Math.round(minutesSinceLastAttempt)} minutos desde el último intento. Reseteando contador.`);
+      intentosActuales = 0;
+    }
+  }
+  
+  const nuevosIntentos = intentosActuales + 1;
   const MAX_ATTEMPTS = 3;
   
   console.log(`   Intentos actuales: ${nuevosIntentos}/${MAX_ATTEMPTS}`);
+  console.log(`   Último intento: ${lockRecord.updated_at || 'Nunca'}`);
   
   // Actualizar intentos fallidos
   const { error: updateError } = await supabase
