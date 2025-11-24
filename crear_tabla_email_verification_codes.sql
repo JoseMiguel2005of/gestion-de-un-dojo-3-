@@ -66,3 +66,45 @@ $$ LANGUAGE plpgsql;
 -- Comentario sobre la función
 COMMENT ON FUNCTION limpiar_codigos_expirados() IS 'Elimina códigos de verificación expirados y no usados';
 
+-- 3. Configurar permisos y RLS (Row Level Security)
+-- Deshabilitar RLS para esta tabla (similar a password_reset_tokens)
+-- La aplicación backend necesita acceso completo a esta tabla
+ALTER TABLE email_verification_codes DISABLE ROW LEVEL SECURITY;
+
+-- Otorgar permisos al rol anon y service_role (usado por Supabase)
+GRANT ALL ON email_verification_codes TO anon;
+GRANT ALL ON email_verification_codes TO authenticated;
+GRANT ALL ON email_verification_codes TO service_role;
+
+-- Otorgar permisos en la secuencia (para el auto-increment del id)
+GRANT USAGE, SELECT ON SEQUENCE email_verification_codes_id_seq TO anon;
+GRANT USAGE, SELECT ON SEQUENCE email_verification_codes_id_seq TO authenticated;
+GRANT USAGE, SELECT ON SEQUENCE email_verification_codes_id_seq TO service_role;
+
+-- Si prefieres usar RLS en lugar de deshabilitarlo, puedes usar estas políticas:
+-- (Descomenta si quieres habilitar RLS en el futuro)
+/*
+ALTER TABLE email_verification_codes ENABLE ROW LEVEL SECURITY;
+
+-- Política para permitir insertar códigos (cualquiera puede crear un código durante el registro)
+CREATE POLICY "Permitir insertar códigos de verificación"
+  ON email_verification_codes
+  FOR INSERT
+  TO anon, authenticated, service_role
+  WITH CHECK (true);
+
+-- Política para permitir leer códigos (solo para verificación)
+CREATE POLICY "Permitir leer códigos de verificación"
+  ON email_verification_codes
+  FOR SELECT
+  TO anon, authenticated, service_role
+  USING (true);
+
+-- Política para permitir actualizar códigos (marcar como usado)
+CREATE POLICY "Permitir actualizar códigos de verificación"
+  ON email_verification_codes
+  FOR UPDATE
+  TO anon, authenticated, service_role
+  USING (true)
+  WITH CHECK (true);
+*/
