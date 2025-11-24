@@ -535,6 +535,7 @@ export default function Pagos() {
               loadData();
             }}
             moneda={configPagos?.moneda}
+            alumnoId={isUsuarioNormal && alumnos.length > 0 ? alumnos[0].id : undefined}
           />
         </DialogContent>
       </Dialog>

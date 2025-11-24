@@ -97,6 +97,7 @@ router.get('/debug/alumno/:alumnoId', async (req, res) => {
 router.get('/precio/:alumnoId', async (req, res) => {
   try {
     const { alumnoId } = req.params;
+    const { esPagoAdelantado } = req.query; // Parámetro opcional para indicar si es pago adelantado
     
     // Obtener información del alumno
     const { data: alumno, error: alumnoError } = await supabase
@@ -150,7 +151,31 @@ router.get('/precio/:alumnoId', async (req, res) => {
     
     // Si es alumno nuevo, agregar $15 de inscripción
     const costoInscripcion = esAlumnoNuevo ? 15 : 0;
-    const precioFinal = Math.round((precioBase + costoInscripcion) * 100) / 100; // Redondear a 2 decimales
+    
+    // Obtener configuración de pagos para el descuento por pago adelantado
+    let descuentoPagoAdelantado = 0;
+    let precioConDescuento = precioBase;
+    
+    if (esPagoAdelantado === 'true' || esPagoAdelantado === true) {
+      // Obtener configuración de pagos
+      const { data: config, error: configError } = await supabase
+        .from('config_pagos')
+        .select('descuento_pago_adelantado, dia_corte')
+        .eq('id', 1)
+        .single();
+      
+      if (!configError && config && config.descuento_pago_adelantado) {
+        descuentoPagoAdelantado = Number(config.descuento_pago_adelantado) || 0;
+        
+        // Aplicar descuento solo al precio base (no a la inscripción)
+        if (descuentoPagoAdelantado > 0) {
+          const descuentoMonto = (precioBase * descuentoPagoAdelantado) / 100;
+          precioConDescuento = Math.round((precioBase - descuentoMonto) * 100) / 100;
+        }
+      }
+    }
+    
+    const precioFinal = Math.round((precioConDescuento + costoInscripcion) * 100) / 100;
 
     res.json({
       alumno_id: alumnoData.alumno_id,
@@ -159,11 +184,13 @@ router.get('/precio/:alumnoId', async (req, res) => {
       categoria_nombre: alumnoData.categoria_nombre,
       precio_categoria: alumnoData.precio_categoria,
       precio_personalizado: null,
-      descuento_porcentaje: 0,
+      descuento_porcentaje: esPagoAdelantado === 'true' || esPagoAdelantado === true ? descuentoPagoAdelantado : 0,
+      descuento_pago_adelantado: esPagoAdelantado === 'true' || esPagoAdelantado === true ? descuentoPagoAdelantado : 0,
       es_alumno_nuevo: esAlumnoNuevo,
       costo_inscripcion: costoInscripcion,
       precio_base: precioBase,
-      precio_final: precioFinal
+      precio_final: precioFinal,
+      es_pago_adelantado: esPagoAdelantado === 'true' || esPagoAdelantado === true
     });
   } catch (error) {
     console.error('Error obteniendo precio del alumno:', error);

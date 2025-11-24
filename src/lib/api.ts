@@ -569,8 +569,9 @@ class ApiClient {
   }
 
   // Nuevos métodos para sistema de precios dinámicos
-  async getPrecioAlumno(idAlumno: string) {
-    return this.request<any>(`/pagos/precio/${idAlumno}`);
+  async getPrecioAlumno(idAlumno: string, esPagoAdelantado?: boolean) {
+    const queryParam = esPagoAdelantado ? '?esPagoAdelantado=true' : '';
+    return this.request<any>(`/pagos/precio/${idAlumno}${queryParam}`);
   }
 
   async getTodosLosPrecios() {

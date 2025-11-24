@@ -71,12 +71,14 @@ interface VerificacionPagoFormProps {
   montoPagar: number;
   onSuccess: () => void;
   moneda?: string;
+  alumnoId?: number; // ID del alumno para recalcular precio con descuento
 }
 
-export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: VerificacionPagoFormProps) {
+export function VerificacionPagoForm({ montoPagar, onSuccess, moneda, alumnoId }: VerificacionPagoFormProps) {
   const [paisConfiguracion, setPaisConfiguracion] = useState<string>('venezuela');
   const [loading, setLoading] = useState(false);
   const [esPagoAdelantado, setEsPagoAdelantado] = useState(false);
+  const [montoConDescuento, setMontoConDescuento] = useState(montoPagar);
   const { isEnglish } = useLanguage();
 
   useEffect(() => {
@@ -152,17 +154,17 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: Verifica
   } = useForm<VerificacionPagoFormData>({
     resolver: zodResolver(validationSchema),
     defaultValues: {
-      monto: String(montoPagar),
+      monto: String(montoConDescuento),
       fecha_transferencia: new Date().toISOString().split('T')[0],
     },
   });
 
   const metodoPago = watch("metodo_pago");
 
-  // Actualizar el resolver cuando cambie el país
+  // Actualizar el resolver cuando cambie el país o el monto
   useEffect(() => {
     reset({
-      monto: String(montoPagar),
+      monto: String(montoConDescuento),
       fecha_transferencia: new Date().toISOString().split('T')[0],
       metodo_pago: undefined,
       banco_origen: '',
@@ -170,7 +172,7 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: Verifica
       cedula_titular: '',
       telefono_cuenta: '',
     });
-  }, [paisConfiguracion, reset, montoPagar]);
+  }, [paisConfiguracion, reset, montoConDescuento]);
 
   // Resetear campos cuando cambie el método de pago
   useEffect(() => {
@@ -211,23 +213,43 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda }: Verifica
         // Solo permitir pago adelantado si:
         // 1. Ya pagó el mes actual (confirmado)
         // 2. NO existe ya un pago para el próximo mes
+        let esAdelantado = false;
         if (pagoConfirmadoMesActual && !pagoProximoMes) {
-          setEsPagoAdelantado(true);
+          esAdelantado = true;
         } else if (pagoProximoMes) {
           // Si ya existe un pago para el próximo mes, informar
           console.warn(`Ya existe un pago para ${proximoMes}/${proximoAnio}:`, pagoProximoMes);
-          setEsPagoAdelantado(false);
+          esAdelantado = false;
         } else {
-          setEsPagoAdelantado(false);
+          esAdelantado = false;
+        }
+        
+        setEsPagoAdelantado(esAdelantado);
+        
+        // Si es pago adelantado y tenemos el ID del alumno, recalcular precio con descuento
+        if (esAdelantado && alumnoId) {
+          try {
+            const precioInfo = await apiClient.getPrecioAlumno(alumnoId.toString(), true);
+            if (precioInfo && precioInfo.precio_final) {
+              setMontoConDescuento(precioInfo.precio_final);
+              // Actualizar el valor del campo monto
+              setValue('monto', String(precioInfo.precio_final));
+            }
+          } catch (error) {
+            console.error('Error obteniendo precio con descuento:', error);
+          }
+        } else {
+          setMontoConDescuento(montoPagar);
         }
       } catch (error) {
         console.error('Error verificando pagos existentes:', error);
         setEsPagoAdelantado(false);
+        setMontoConDescuento(montoPagar);
       }
     };
 
     verificarPagoExistente();
-  }, []);
+  }, [alumnoId, montoPagar, setValue]);
 
   const onSubmit = async (data: VerificacionPagoFormData) => {
     // Si es un pago adelantado, verificar que el usuario ya pagó el mes actual
