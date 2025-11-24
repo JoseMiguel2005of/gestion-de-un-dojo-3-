@@ -363,8 +363,11 @@ export function VerificacionPagoForm({ montoPagar, onSuccess, moneda, alumnoId }
         metodoPagoTexto = isEnglish ? "Mobile Payment" : "Pago Móvil";
       }
 
+      // Si es pago adelantado, usar el monto con descuento
+      const montoFinal = esPagoAdelantadoFinal ? montoConDescuento : parseFloat(data.monto);
+
       const pagoData = {
-        monto: parseFloat(data.monto),
+        monto: montoFinal,
         metodo_pago: metodoPagoTexto,
         referencia: data.referencia,
         banco_origen: data.banco_origen,
