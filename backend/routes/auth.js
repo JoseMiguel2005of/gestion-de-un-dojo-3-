@@ -49,17 +49,22 @@ router.post('/login', [
     }
 
     const user = users[0];
-    console.log('✅ Usuario encontrado:', user.username, '| Rol:', user.rol);
+    console.log('✅ Usuario encontrado:', user.username, '| Rol:', user.rol, '| ID:', user.id);
 
     // Verificar si la cuenta está bloqueada
+    console.log('🔍 Verificando estado de bloqueo antes de verificar contraseña...');
     const lockStatus = await isAccountLocked(user.id);
+    console.log('📊 Estado de bloqueo recibido:', lockStatus);
     
     if (lockStatus.locked) {
+      console.log('🔒 CUENTA BLOQUEADA detectada para usuario:', user.username);
       // Si está bloqueada y se proporciona código, verificarlo
       if (unlockCode) {
+        console.log('   Código de desbloqueo proporcionado, verificando...');
         const codeVerification = await verifyUnlockCode(user.id, unlockCode);
         
         if (!codeVerification.valid) {
+          console.log('   ❌ Código inválido:', codeVerification.error);
           return res.status(400).json({ 
             error: 'Código de desbloqueo inválido',
             locked: true,
@@ -71,12 +76,15 @@ router.post('/login', [
         console.log('✅ Cuenta desbloqueada con código válido');
       } else {
         // Está bloqueada y no se proporcionó código
+        console.log('   ❌ No se proporcionó código de desbloqueo');
         return res.status(403).json({ 
           error: 'Cuenta bloqueada',
           locked: true,
           message: 'Tu cuenta ha sido bloqueada debido a múltiples intentos fallidos. Se ha enviado un código de desbloqueo a tu correo electrónico.' 
         });
       }
+    } else {
+      console.log('✅ Cuenta NO bloqueada, continuando con verificación de contraseña...');
     }
 
     // Verificar contraseña

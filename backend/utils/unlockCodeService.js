@@ -96,79 +96,84 @@ export const incrementFailedAttempts = async (usuarioId) => {
  */
 const blockAccount = async (usuarioId) => {
   console.log(`🔒 Iniciando bloqueo de cuenta para usuario ID: ${usuarioId}`);
+  
+  // PRIMERO: Bloquear la cuenta en la BD (esto es lo más importante)
+  // Generar código de desbloqueo (válido por 30 minutos)
+  const unlockCode = generateUnlockCode();
+  const expiresAt = new Date();
+  expiresAt.setMinutes(expiresAt.getMinutes() + 30);
+  
+  console.log(`   Código de desbloqueo generado: ${unlockCode}`);
+  console.log(`   Código expira en: ${expiresAt.toISOString()}`);
+
+  // Bloquear cuenta y guardar código (CRÍTICO - debe completarse)
+  console.log(`   Guardando bloqueo en base de datos...`);
+  const { error: blockError, data: blockData } = await supabase
+    .from('account_lock')
+    .update({
+      bloqueado: true,
+      bloqueado_desde: new Date().toISOString(),
+      codigo_desbloqueo: unlockCode,
+      codigo_expires_at: expiresAt.toISOString(),
+      codigo_used: false,
+      updated_at: new Date().toISOString()
+    })
+    .eq('usuario_id', usuarioId)
+    .select();
+
+  if (blockError) {
+    console.error('❌ ERROR CRÍTICO bloqueando cuenta:', blockError);
+    console.error('   Detalles:', JSON.stringify(blockError, null, 2));
+    // Lanzar error solo si falla el bloqueo en BD - esto es crítico
+    throw new Error(`Error bloqueando cuenta en BD: ${blockError.message}`);
+  }
+  
+  console.log(`✅ Cuenta bloqueada y código guardado en BD`);
+  console.log(`   Datos actualizados:`, blockData);
+
+  // SEGUNDO: Intentar obtener email y enviar correo (no crítico)
+  let userEmail = null;
+  let userName = null;
+  
   try {
-    // Obtener datos del usuario
     const { data: users, error: userError } = await supabase
       .from('usuario')
       .select('email, username')
       .eq('id', usuarioId)
       .limit(1);
 
-    if (userError) {
-      console.error('Error obteniendo usuario para bloqueo:', userError);
-      throw new Error(`Error obteniendo usuario: ${userError.message}`);
+    if (!userError && users && users.length > 0) {
+      userEmail = users[0].email;
+      userName = users[0].username;
+      console.log(`   Email obtenido: ${userEmail}`);
+    } else {
+      console.warn(`⚠️ No se pudo obtener email del usuario ${usuarioId} para envío de correo`);
+      if (userError) {
+        console.error('   Error obteniendo usuario:', userError);
+      }
     }
+  } catch (userFetchError) {
+    console.warn(`⚠️ Error al obtener datos del usuario para correo:`, userFetchError.message);
+    // No lanzar error - la cuenta ya está bloqueada
+  }
 
-    if (!users || users.length === 0) {
-      console.error('Usuario no encontrado para bloqueo:', usuarioId);
-      throw new Error('Usuario no encontrado');
-    }
-
-    const user = users[0];
-
-    if (!user.email) {
-      console.error('Usuario no tiene email configurado:', usuarioId);
-      throw new Error('Usuario no tiene email configurado');
-    }
-
-    // Generar código de desbloqueo (válido por 30 minutos)
-    const unlockCode = generateUnlockCode();
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 30);
-    
-    console.log(`   Código de desbloqueo generado: ${unlockCode}`);
-    console.log(`   Código expira en: ${expiresAt.toISOString()}`);
-
-    // Bloquear cuenta y guardar código
-    console.log(`   Guardando código en base de datos...`);
-    const { error: blockError } = await supabase
-      .from('account_lock')
-      .update({
-        bloqueado: true,
-        bloqueado_desde: new Date().toISOString(),
-        codigo_desbloqueo: unlockCode,
-        codigo_expires_at: expiresAt.toISOString(),
-        codigo_used: false,
-        updated_at: new Date().toISOString()
-      })
-      .eq('usuario_id', usuarioId);
-
-    if (blockError) {
-      console.error('❌ Error bloqueando cuenta:', blockError);
-      throw new Error(`Error bloqueando cuenta: ${blockError.message}`);
-    }
-    
-    console.log(`✅ Cuenta bloqueada y código guardado en BD`);
-
-    // Enviar código por correo (no crítico - la cuenta ya está bloqueada)
+  // Enviar código por correo (no crítico - la cuenta ya está bloqueada)
+  if (userEmail) {
     try {
-      console.log(`📧 Intentando enviar código de desbloqueo a: ${user.email}`);
-      await sendUnlockCodeEmail(user.email, unlockCode, user.username || 'Usuario');
-      console.log(`✅ Código de desbloqueo enviado exitosamente a: ${user.email}`);
+      console.log(`📧 Intentando enviar código de desbloqueo a: ${userEmail}`);
+      await sendUnlockCodeEmail(userEmail, unlockCode, userName || 'Usuario');
+      console.log(`✅ Código de desbloqueo enviado exitosamente a: ${userEmail}`);
     } catch (emailError) {
       // NO lanzar error aquí - la cuenta ya está bloqueada, que es lo importante
-      // Solo loguear el error para diagnóstico
       console.error('⚠️ ADVERTENCIA: No se pudo enviar el correo de desbloqueo:');
-      console.error('   Email del usuario:', user.email);
+      console.error('   Email del usuario:', userEmail);
       console.error('   Código generado:', unlockCode);
       console.error('   Error:', emailError.message);
-      console.error('   Stack:', emailError.stack);
       console.error('   NOTA: La cuenta está bloqueada. El usuario puede solicitar reenvío del código.');
-      // La cuenta está bloqueada, que es lo importante. El correo es secundario.
     }
-  } catch (error) {
-    console.error('Error en blockAccount:', error);
-    throw error;
+  } else {
+    console.warn(`⚠️ No se envió correo porque no se pudo obtener el email del usuario`);
+    console.warn(`   La cuenta está bloqueada. El usuario puede solicitar reenvío del código.`);
   }
 };
 
@@ -196,23 +201,32 @@ export const resetFailedAttempts = async (usuarioId) => {
  * Verifica si una cuenta está bloqueada
  */
 export const isAccountLocked = async (usuarioId) => {
+  console.log(`🔍 Verificando estado de bloqueo para usuario ID: ${usuarioId}`);
   const { data: lockRecord, error } = await supabase
     .from('account_lock')
-    .select('bloqueado, bloqueado_desde')
+    .select('bloqueado, bloqueado_desde, intentos_fallidos')
     .eq('usuario_id', usuarioId)
     .limit(1);
 
   if (error) {
-    console.error('Error verificando bloqueo:', error);
+    console.error('❌ Error verificando bloqueo:', error);
     return { locked: false };
   }
 
   if (!lockRecord || lockRecord.length === 0) {
+    console.log(`   No hay registro de bloqueo para usuario ${usuarioId} - cuenta no bloqueada`);
     return { locked: false };
   }
 
+  const isLocked = lockRecord[0].bloqueado === true;
+  console.log(`   Estado de bloqueo: ${isLocked ? 'BLOQUEADA' : 'NO BLOQUEADA'}`);
+  console.log(`   Intentos fallidos: ${lockRecord[0].intentos_fallidos || 0}`);
+  if (isLocked) {
+    console.log(`   Bloqueada desde: ${lockRecord[0].bloqueado_desde}`);
+  }
+
   return {
-    locked: lockRecord[0].bloqueado === true,
+    locked: isLocked,
     lockedSince: lockRecord[0].bloqueado_desde
   };
 };
